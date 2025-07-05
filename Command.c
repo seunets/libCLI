@@ -513,9 +513,8 @@ Argument_t *arg;
             return CLI_SUCCESS;
          }
          
-         // If we're at the root level and this isn't a subcommand,
-         // it might be an argument for the current command
-         if( current == self && current-> argumentCount > 0 )
+         // If the current command has arguments, this might be an argument
+         if( current-> argumentCount > 0 )
          {
             // This is an argument for the root command, not an invalid subcommand
             break;
