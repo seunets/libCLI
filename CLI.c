@@ -139,22 +139,29 @@ Argument_t *arg;
 }
 
 
-static Flag_t * addFlag( Command_t *cmd, const char *name, char shortName, const char *description )
+static int addFlag( CLI_t *cli, const char *path, const char *name, char shortName, const char *description )
 {
+Command_t *cmd;
 Flag_t *flag;
+
+   cmd = ( path != NULL && *path != '\0' ) ? resolveCommandPath( cli-> rootCommand, path ) : cli-> rootCommand;
+   if( cmd == NULL )
+   {
+      return CLI_ERROR_NOT_FOUND;
+   }
 
    if( ( flag = newFlag( name, shortName, description ) ) == NULL )
    {
-      return NULL;
+      return CLI_ERROR_MEMORY;
    }
 
    if( cmd-> addFlag( cmd, flag ) != CLI_SUCCESS )
    {
       flag-> delete( flag );
-      return NULL;
+      return CLI_ERROR_MEMORY;
    }
 
-   return flag;
+   return CLI_SUCCESS;
 }
 
 

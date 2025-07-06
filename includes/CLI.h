@@ -12,7 +12,7 @@ typedef struct CLI
    int ( *addCommand )( struct CLI *, const char *, const char *, int ( *handler )( CommandContext_t * ) );
    int ( *addSubCommand )( struct CLI *, const char *, const char *, const char *, int ( *handler )( CommandContext_t * ) );
    int ( *addArgument )( struct CLI *, const char *, const char *, const char *, bool );
-   Flag_t * ( *addFlag )( Command_t *, const char *, char, const char * );
+   int ( *addFlag )( struct CLI *, const char *, const char *, char, const char * );
    int ( *parse )( struct CLI *, int, char *[] );
    void ( *delete )( struct CLI * );
 } CLI_t;
