@@ -25,7 +25,7 @@ Adds a subcommand. Returns `CLI_SUCCESS` on success, or a negative error code on
 ### int addArgument( CLI_t *cli, const char *path, const char *name, const char *description, bool required )
 Adds an argument. Returns `CLI_SUCCESS` on success, or a negative error code on failure.
 
-### int addFlag(CLI_t *cli, const char *path, const char *name, char shortName, const char *description)
+### int CLI_t::addFlag(CLI_t *cli, const char *path, const char *name, char shortName, const char *description)
 Adds a flag. Returns `CLI_SUCCESS` on success, or a negative error code on failure.
 
 ### int parse( CLI_t *cli, int argc, char *argv[] )
@@ -35,9 +35,6 @@ Parses the command line. Returns `CLI_SUCCESS` on success, or a negative error c
 Deletes the CLI instance and all associated memory.
 
 ### Context Methods
-
-#### Command_t * getCommand( CommandContext_t *context )
-Gets the command associated with the current context. Returns the command or `NULL` if invalid.
 
 #### const char * getArgument( CommandContext_t *context, const char *name )
 Gets the value of an argument from the context. Returns the argument value or `NULL` if not found.

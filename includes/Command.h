@@ -38,7 +38,6 @@ struct CommandContext
    void *privateData;
    const char * ( *getArgument )( struct CommandContext *, const char * );
    bool ( *getFlag )( struct CommandContext *, const char * );
-   Command_t * ( *getCommand )( struct CommandContext * );
    void ( *delete )( struct CommandContext * );
 };
 

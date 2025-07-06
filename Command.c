@@ -65,21 +65,6 @@ static bool hasArgument( Command_t *cmd, const char *name )
 }
 
 
-static Command_t * contextGetCommand( CommandContext_t *ctx )
-{
-CommandContextData_t *data;
-
-   if( ctx == NULL || ctx-> privateData == NULL )
-   {
-      return NULL;
-   }
-
-   data = ( CommandContextData_t * ) ctx-> privateData;
-
-   return data-> command;
-}
-
-
 static char * buildCommandPath( Command_t *cmd )
 {
 size_t len;
@@ -332,7 +317,6 @@ CommandContextData_t *data;
    ctx-> privateData = data;
    ctx-> getArgument = contextGetArgument;
    ctx-> getFlag = contextGetFlag;
-   ctx-> getCommand = contextGetCommand;
    ctx-> delete = contextDelete;
 
    return ctx;
