@@ -25,7 +25,7 @@ Adds a subcommand. Returns `CLI_SUCCESS` on success, or a negative error code on
 ### int addArgument( CLI_t *cli, const char *path, const char *name, const char *description, bool required )
 Adds an argument. Returns `CLI_SUCCESS` on success, or a negative error code on failure.
 
-### int CLI_t::addFlag(CLI_t *cli, const char *path, const char *name, char shortName, const char *description)
+### int addFlag(CLI_t *cli, const char *path, const char *name, char shortName, const char *description)
 Adds a flag. Returns `CLI_SUCCESS` on success, or a negative error code on failure.
 
 ### int parse( CLI_t *cli, int argc, char *argv[] )
