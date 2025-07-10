@@ -1,5 +1,5 @@
-#ifndef FLAG_H
-#define FLAG_H
+#ifndef LIBCLI_FLAG_H
+#define LIBCLI_FLAG_H
 
 
 #include <stdbool.h>

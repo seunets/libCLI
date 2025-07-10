@@ -1,5 +1,5 @@
-#ifndef ARGUMENT_H
-#define ARGUMENT_H
+#ifndef LIBCLI_ARGUMENT_H
+#define LIBCLI_ARGUMENT_H
 
 
 #include <stdbool.h>

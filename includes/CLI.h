@@ -1,5 +1,5 @@
-#ifndef CLI_H
-#define CLI_H
+#ifndef LIBCLI_H
+#define LIBCLI_H
 
 
 #include "Errors.h"

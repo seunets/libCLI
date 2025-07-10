@@ -1,5 +1,5 @@
-#ifndef COMMAND_H
-#define COMMAND_H
+#ifndef LIBCLI_COMMAND_H
+#define LIBCLI_COMMAND_H
 
 
 #include <stdbool.h>

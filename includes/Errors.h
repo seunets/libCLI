@@ -1,5 +1,5 @@
-#ifndef ERRORS_H
-#define ERRORS_H
+#ifndef LIBCLI_ERRORS_H
+#define LIBCLI_ERRORS_H
 
 
 // Error codes
