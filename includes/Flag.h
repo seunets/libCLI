@@ -7,15 +7,14 @@
 
 typedef struct Flag
 {
-   char *name;
-   char *description;
-   char shortName;
-   bool isSet;
-   char pad[ 6 ];
-   void ( *set )( struct Flag * );
+   const char * ( *getName )( const struct Flag * );
+   const char * ( *getDescription )( const struct Flag * );
+   char ( *getShortName )( const struct Flag * );
+   bool ( *isSet )( const struct Flag * );
+   void ( *set )( const struct Flag * );
    void ( *delete )( struct Flag * );
+   void *private;
 } Flag_t;
-
 
 Flag_t * newFlag( const char *, char, const char * );
 

@@ -1,6 +1,6 @@
 LIB = CLI
 
-SRCS = CLI.c Command.c Flag.c Argument.c
+SRCS = CLI.c Command.c CommandContext.c Flag.c Argument.c
 
 MAN=
 

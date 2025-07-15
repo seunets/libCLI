@@ -3,45 +3,31 @@
 
 
 #include <stdbool.h>
-#include "Argument.h"
-#include "Flag.h"
-
-
-typedef struct CommandContext CommandContext_t;
+#include "CommandContext.h"
 
 
 typedef struct Command
 {
-   char *name;
-   char *description;
-   int ( *handler )( struct CommandContext * );
-   struct Command *parent;
-   struct Command **subCommands;
-   Argument_t **arguments;
-   Flag_t **flags;
    int ( *addSubCommand )( struct Command *, struct Command * );
-   int ( *addArgument )( struct Command *, Argument_t * );
-   int ( *addFlag )( struct Command *, Flag_t * );
+   int ( *addArgument )( const struct Command *, struct Argument * );
+   int ( *addFlag )( const struct Command *, struct Flag * );
    int ( *parse )( struct Command *, int, char *[] );
    void ( *delete )( struct Command * );
-   const char * ( *getArgumentValue )( struct Command *, const char * );
-   bool ( *hasArgument )( struct Command *, const char * );
-   int subCommandCount;
-   int argumentCount;
-   int flagCount;
-   char pad[ 4 ];
+   const char * ( *getName )( const struct Command * );
+   const char * ( *getDescription )( const struct Command * );
+   bool ( *hasArgument )( const struct Command *, const char * );
+   const char * ( *getArgumentValue )( const struct Command *, const char * );
+   Argument_t ** ( *getArguments )( const struct Command * );
+   int ( *getArgumentCount )( const struct Command * );
+   Flag_t ** ( *getFlags )( const struct Command * );
+   int ( *getFlagCount )( const struct Command * );
+   struct Command ** ( *getSubCommands )( const struct Command * );
+   int ( *getSubCommandCount )( const struct Command * );
+   void ( *printHelp )( struct Command * );
+   void ( *forEachSubCommand )( struct Command *, bool( * )( struct Command * ) );
+   void *private;
 } Command_t;
 
-
-struct CommandContext
-{
-   void *privateData;
-   const char * ( *getArgument )( struct CommandContext *, const char * );
-   bool ( *getFlag )( struct CommandContext *, const char * );
-   void ( *delete )( struct CommandContext * );
-};
-
-
-Command_t * newCommand( const char *, const char *, int ( *handler )( CommandContext_t * ) );
+Command_t * newCommand( const char *, const char *, int ( * )( const CommandContext_t * ) );
 
 #endif

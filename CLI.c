@@ -1,27 +1,32 @@
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include "Errors.h"
 #include "CLI.h"
+#include "Command.h"
 #include "Argument.h"
 #include "Flag.h"
 
 
-static int findCommand( Command_t *const *restrict commands, int count, const char *restrict name )
+struct privateData
 {
-   for( int i = 0; i < count; i++ )
+   Command_t *rootCommand;
+};
+
+
+static const char *findSubCmdToken = NULL;
+static Command_t *findSubCmdFound = NULL;
+
+static bool findSubCmd( Command_t *sub )
+{
+   if( strcmp( sub-> getName( sub ), findSubCmdToken ) == 0 )
    {
-      if( strcmp( commands[ i ]-> name, name ) == 0 )
-      {
-         return i;
-      }
+      findSubCmdFound = sub;
+      return false;
    }
 
-   return CLI_ERROR_NOT_FOUND;
+   return true;
 }
 
 
@@ -33,28 +38,27 @@ Command_t *current;
 
    if( root == NULL || path == NULL || *path == '\0' )
    {
-      return NULL;
+      return root;
    }
 
    if( ( pathCopy = strdup( path ) ) == NULL )
    {
-      fputs( "Error: Failed to allocate memory for path copy.\n", stderr );
       return NULL;
    }
 
    token = strtok( pathCopy, " " );
    current = root;
-
    while( token != NULL && current != NULL )
    {
-   int i = findCommand( current-> subCommands, current-> subCommandCount, token );
-
-      if( i < 0 )
+      findSubCmdToken = token;
+      findSubCmdFound = NULL;
+      current-> forEachSubCommand( current, findSubCmd );
+      current = findSubCmdFound;
+      if( current == NULL )
       {
          free( pathCopy );
          return NULL;
       }
-      current = current-> subCommands[ i ];
       token = strtok( NULL, " " );
    }
    free( pathCopy );
@@ -63,8 +67,9 @@ Command_t *current;
 }
 
 
-static int addCommand( CLI_t *cli, const char *name, const char *description, int ( *handler )( CommandContext_t * ) )
+static int addCommand( const CLI_t *self, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
+struct privateData *private = self-> private;
 Command_t *cmd;
 
    if( ( cmd = newCommand( name, description, handler ) ) == NULL )
@@ -72,7 +77,7 @@ Command_t *cmd;
       return CLI_ERROR_MEMORY;
    }
 
-   if( cli-> rootCommand-> addSubCommand( cli-> rootCommand, cmd ) != CLI_SUCCESS )
+   if( private-> rootCommand-> addSubCommand( private-> rootCommand, cmd ) != CLI_SUCCESS )
    {
       cmd-> delete( cmd );
       return CLI_ERROR_MEMORY;
@@ -82,8 +87,9 @@ Command_t *cmd;
 }
 
 
-static int addSubCommand( CLI_t *cli, const char *parentPath, const char *name, const char *description, int ( *handler )( CommandContext_t * ) )
+static int addSubCommand( const CLI_t *self, const char *parentPath, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
+struct privateData *private = self-> private;
 Command_t *parent, *sub;
 
    if( parentPath == NULL || *parentPath == '\0' )
@@ -92,7 +98,7 @@ Command_t *parent, *sub;
    }
    else
    {
-      if( ( parent = resolveCommandPath( cli-> rootCommand, parentPath ) ) == NULL )
+      if( ( parent = resolveCommandPath( private-> rootCommand, parentPath ) ) == NULL )
       {
          return CLI_ERROR_NOT_FOUND;
       }
@@ -113,12 +119,21 @@ Command_t *parent, *sub;
 }
 
 
-static int addArgument( CLI_t *cli, const char *path, const char *name, const char *description, bool required )
+static int addArgument( const CLI_t *self, const char *path, const char *name, const char *description, bool required )
 {
+struct privateData *private = self-> private;
 Command_t *cmd;
 Argument_t *arg;
 
-   cmd = ( path != NULL && *path != '\0' ) ? resolveCommandPath( cli-> rootCommand, path ) : cli-> rootCommand;
+   if( path != NULL && *path != '\0' )
+   {
+      cmd = resolveCommandPath( private-> rootCommand, path );
+   }
+   else
+   {
+      cmd = private-> rootCommand;
+   }
+
    if( cmd == NULL )
    {
       return CLI_ERROR_NOT_FOUND;
@@ -139,12 +154,22 @@ Argument_t *arg;
 }
 
 
-static int addFlag( CLI_t *cli, const char *path, const char *name, char shortName, const char *description )
+static int addFlag( const CLI_t *self, const char *path, const char *name, char shortName, const char *description )
 {
+struct privateData *private = self-> private;
 Command_t *cmd;
 Flag_t *flag;
 
-   cmd = ( path != NULL && *path != '\0' ) ? resolveCommandPath( cli-> rootCommand, path ) : cli-> rootCommand;
+
+   if( path != NULL && *path != '\0' )
+   {
+      cmd = resolveCommandPath( private-> rootCommand, path );
+   }
+   else
+   {
+      cmd = private-> rootCommand;
+   }
+
    if( cmd == NULL )
    {
       return CLI_ERROR_NOT_FOUND;
@@ -165,11 +190,13 @@ Flag_t *flag;
 }
 
 
-static int parse( CLI_t *self, int argc, char *argv[] )
+static int parse( const CLI_t *self, int argc, char *argv[] )
 {
-   if( self-> rootCommand != NULL && self-> rootCommand-> parse != NULL )
+   struct privateData *private = self-> private;
+
+   if( private-> rootCommand != NULL && private-> rootCommand-> parse != NULL )
    {
-      return self-> rootCommand-> parse( self-> rootCommand, argc, argv );
+      return private-> rootCommand-> parse( private-> rootCommand, argc, argv );
    }
 
    return CLI_ERROR_INVALID_ARGUMENT;
@@ -178,34 +205,53 @@ static int parse( CLI_t *self, int argc, char *argv[] )
 
 static void delete( CLI_t *self )
 {
+struct privateData *private;
+
    if( self == NULL )
    {
       return;
    }
 
-   if( self-> rootCommand != NULL )
+   if( ( private = self-> private ) != NULL )
    {
-      self-> rootCommand-> delete( self-> rootCommand );
+      if( private-> rootCommand != NULL )
+      {
+         private-> rootCommand-> delete( private-> rootCommand );
+      }
+      free( private );
    }
    free( self );
 }
 
+
 CLI_t * newCLI( void )
 {
 CLI_t *self;
+struct privateData *private;
 
    if( ( self = calloc( 1, sizeof( CLI_t ) ) ) == NULL )
    {
       return NULL;
    }
 
+   if( ( private = calloc( 1, sizeof( struct privateData ) ) ) == NULL )
+   {
+      free( self );
+      return NULL;
+   }
+
+   self-> private = private;
    self-> addCommand = addCommand;
    self-> addSubCommand = addSubCommand;
    self-> addArgument = addArgument;
    self-> addFlag = addFlag;
    self-> parse = parse;
    self-> delete = delete;
-   self-> rootCommand = newCommand( getprogname(), NULL, NULL );
+   private-> rootCommand = newCommand( getprogname(), NULL, NULL );
+   if( private-> rootCommand && private-> rootCommand-> printHelp )
+   {
+      private-> rootCommand-> printHelp( private-> rootCommand );
+   }
 
    return self;
 }

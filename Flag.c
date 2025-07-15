@@ -4,21 +4,95 @@
 #include "Flag.h"
 
 
-static void set( Flag_t *self )
+struct privateData
 {
-   self-> isSet = true;
+   char *name;
+   char *description;
+   char shortName;
+   bool isSet;
+   char pad[ 6 ];
+};
+
+
+static const char * getName( const Flag_t *self )
+{
+const struct privateData *private;
+
+   if( self == NULL || self-> private == NULL )
+   {
+      return NULL;
+   }
+
+   private = self-> private;
+   return private-> name;
+}
+
+
+static const char * getDescription( const Flag_t *self )
+{
+const struct privateData *private;
+
+   if( self == NULL || self-> private == NULL )
+   {
+      return NULL;
+   }
+
+   private = self-> private;
+   return private-> description;
+}
+
+
+static char getShortName( const Flag_t *self )
+{
+const struct privateData *private;
+
+   if( self == NULL || self-> private == NULL )
+   {
+      return '\0';
+   }
+
+   private = self-> private;
+   return private-> shortName;
+}
+
+
+static bool isSet( const Flag_t *self )
+{
+const struct privateData *private;
+
+   if( self == NULL || self-> private == NULL )
+   {
+      return false;
+   }
+
+   private = self-> private;
+   return private-> isSet;
+}
+
+
+static void set( const Flag_t *self )
+{
+struct privateData *private = self-> private;
+
+   private-> isSet = true;
 }
 
 
 static void delete( Flag_t *self )
 {
+struct privateData *private;
+
    if( self == NULL )
    {
       return;
    }
 
-   free( self-> name );
-   free( self-> description );
+   if( ( private = self-> private ) != NULL )
+   {
+      free( private-> name );
+      free( private-> description );
+      free( private );
+   }
    free( self );
 }
 
@@ -26,28 +100,42 @@ static void delete( Flag_t *self )
 Flag_t * newFlag( const char *name, char shortName, const char *description )
 {
 Flag_t *self;
+struct privateData *private;
 
    if( ( self = calloc( 1, sizeof( Flag_t ) ) ) == NULL )
    {
       return NULL;
    }
 
-   if( ( self-> name = strdup( name ) ) == NULL )
+   if( ( private = calloc( 1, sizeof( struct privateData ) ) ) == NULL )
    {
+      free( self );
+      return NULL;
+   }
+
+   if( ( private-> name = strdup( name ) ) == NULL )
+   {
+      free( private );
       free( self );
       return NULL;
    }
 
    if( description != NULL )
    {
-      if( ( self-> description = strdup( description ) ) == NULL )
+      if( ( private-> description = strdup( description ) ) == NULL )
       {
-         free( self-> name );
+         free( private-> name );
+         free( private );
          free( self );
          return NULL;
       }
    }
-   self-> shortName = shortName;
+   private-> shortName = shortName;
+   self-> private = private;
+   self-> getName = getName;
+   self-> getDescription = getDescription;
+   self-> getShortName = getShortName;
+   self-> isSet = isSet;
    self-> set = set;
    self-> delete = delete;
 

@@ -2,37 +2,115 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include "Errors.h"
 #include "Argument.h"
 
 
-static int setValue( Argument_t *self, const char *value )
+struct privateData
 {
-   if( self-> value != NULL )
+   char *name;
+   char *description;
+   char *value;
+   bool required;
+   char pad[ 7 ];
+};
+
+
+static const char * getName( const Argument_t *self )
+{
+const struct privateData *private;
+
+   if( self == NULL || self-> private == NULL )
    {
-      free( self-> value );
-      return CLI_ERROR_ALREADY_EXISTS;
+      return NULL;
    }
 
-   if( ( self-> value = strdup( value ) ) == NULL )
+   private = self-> private;
+   return private-> name;
+}
+
+
+static const char * getDescription( const Argument_t *self )
+{
+const struct privateData *private;
+
+   if( self == NULL || self-> private == NULL )
    {
-      return CLI_ERROR_MEMORY;
+      return NULL;
    }
 
-   return CLI_SUCCESS;
+   private = self-> private;
+   return private-> description;
+}
+
+
+static const char * getValue( const Argument_t *self )
+{
+const struct privateData *private;
+
+   if( self == NULL || self-> private == NULL )
+   {
+      return NULL;
+   }
+
+   private = self-> private;
+   return private-> value;
+}
+
+
+static bool isRequired( const Argument_t *self )
+{
+const struct privateData *private;
+
+   if( self == NULL || self-> private == NULL )
+   {
+      return false;
+   }
+
+   private = self-> private;
+   return private-> required;
+}
+
+
+static void setValue( const Argument_t *self, const char *value )
+{
+struct privateData *private = NULL;
+
+   if( self == NULL || self-> private == NULL )
+   {
+      return;
+   }
+
+   if( ( private = self-> private ) != NULL )
+   {
+      free( private-> value );
+   }
+   if( value != NULL )
+   {
+      private-> value = strdup( value );
+   }
+   else
+   {
+      private-> value = NULL;
+   }
 }
 
 
 static void delete( Argument_t *self )
 {
+struct privateData *private;
+
    if( self == NULL )
    {
       return;
    }
 
-   free( self-> name );
-   free( self-> description );
-   free( self-> value );
+   if( ( private = self-> private ) != NULL )
+   {
+      free( private-> name );
+      free( private-> description );
+      free( private-> value );
+      free( private );
+   }
    free( self );
 }
 
@@ -40,28 +118,42 @@ static void delete( Argument_t *self )
 Argument_t * newArgument( const char *name, const char *description, bool required )
 {
 Argument_t *self;
+struct privateData *private;
 
    if( ( self = calloc( 1, sizeof( Argument_t ) ) ) == NULL )
    {
       return NULL;
    }
 
-   if( ( self-> name = strdup( name ) ) == NULL )
+   if( ( private = calloc( 1, sizeof( struct privateData ) ) ) == NULL )
    {
+      free( self );
+      return NULL;
+   }
+
+   if( ( private-> name = strdup( name ) ) == NULL )
+   {
+      free( private );
       free( self );
       return NULL;
    }
 
    if( description != NULL )
    {
-      if( ( self-> description = strdup( description ) ) == NULL )
+      if( ( private-> description = strdup( description ) ) == NULL )
       {
-         free( self-> name );
+         free( private-> name );
+         free( private );
          free( self );
          return NULL;
       }
    }
-   self-> required = required;
+   private-> required = required;
+   self-> private = private;
+   self-> getName = getName;
+   self-> getDescription = getDescription;
+   self-> getValue = getValue;
+   self-> isRequired = isRequired;
    self-> setValue = setValue;
    self-> delete = delete;
 
