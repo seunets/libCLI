@@ -248,10 +248,6 @@ struct privateData *private;
    self-> parse = parse;
    self-> delete = delete;
    private-> rootCommand = newCommand( getprogname(), NULL, NULL );
-   if( private-> rootCommand && private-> rootCommand-> printHelp )
-   {
-      private-> rootCommand-> printHelp( private-> rootCommand );
-   }
 
    return self;
 }
