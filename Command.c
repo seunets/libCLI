@@ -10,46 +10,25 @@
 #include "CLI.h"
 
 
-static const char *findSubCmdToken = NULL;
-static Command_t *findSubCmdFound = NULL;
-
-static bool findSubCmd( Command_t *sub )
-{
-   if( strcmp( sub-> getName( sub ), findSubCmdToken ) == 0 )
-   {
-      findSubCmdFound = sub;
-      return false;
-   }
-
-   return true;
-}
-
-
-struct privateData
+typedef struct privateData
 {
    char *name;
    char *description;
-   Command_t **subCommands;
+   struct Command **subCommands;
    Argument_t **arguments;
    Flag_t **flags;
-   Command_t *parent;
+   struct Command *parent;
    int ( *handler )( const CommandContext_t * );
-   Command_t ** ( *getSubCommands )( const Command_t * );
-   int ( *getSubCommandCount )( const Command_t * );
-   Argument_t ** ( *getArguments )( const Command_t * );
-   int ( *getArgumentCount )( const Command_t * );
-   Flag_t ** ( *getFlags )( const Command_t * );
-   int ( *getFlagCount )( const Command_t * );
-   int subCommandCount;
    int argumentCount;
    int flagCount;
+   int subCommandCount;
    char pad[ 4 ];
-};
+} PrivateData;
 
 
 static const char * getName( const Command_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -63,7 +42,7 @@ const struct privateData *private;
 
 static const char * getDescription( const Command_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -103,8 +82,8 @@ const struct privateData *private;
 
    if( ( private = self-> private ) != NULL )
    {
-      arguments = private-> getArguments( self );
-      count = private-> getArgumentCount( self );
+      arguments = self-> getArguments( self );
+      count = self-> getArgumentCount( self );
    }
    else
    {
@@ -134,12 +113,6 @@ Argument_t *arg = getCommandArgument( cmd, name );
 }
 
 
-static bool hasArgument( const Command_t *cmd, const char *name )
-{
-   return getCommandArgument( cmd, name ) != NULL;
-}
-
-
 static char * buildCommandPath( const Command_t *self )
 {
 const struct privateData *private = self-> private;
@@ -165,7 +138,7 @@ char *parentPath;
          return NULL;
       }
 
-      len = strlen( parentPath ) + 1 + strlen( private-> name ) + 1;
+      len = strlen( parentPath ) + strlen( private-> name ) + 2;
       if( ( buf = calloc( 1, len ) ) == NULL )
       {
          free( parentPath );
@@ -180,147 +153,110 @@ char *parentPath;
 }
 
 
-static void printHelp( Command_t *self )
+static void printHelp( const Command_t *self )
 {
-const struct privateData *private;
-char *path, *progname, *trimmedPath, *space;
-Argument_t **arguments;
-int argCount;
+PrivateData *private = self-> private;
+char *fullPath = buildCommandPath( self );
+Argument_t **args;
 Flag_t **flags;
-int flagCount;
+int i, argCount, flagCount;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL || private == NULL )
    {
+      free( fullPath );
       return;
    }
 
-   private = self-> private;
-   path = buildCommandPath( self );
-   trimmedPath = path;
-
-   if( ( progname = strdup( self-> getName( self ) ) ) == NULL )
+   if( private-> description != NULL )
    {
-      if( path != NULL )
-      {
-         free( path );
-      }
-      return;
+      fprintf( stderr, "%s\n\n", private-> description );
    }
 
-   if( private-> parent == NULL )
-   {
-      int subCount;
-      Command_t **subs;
-      const char *description = self-> getDescription( self );
+   fprintf( stderr, "Usage: %s", fullPath );
 
-      if( description != NULL && *description != '\0' )
+   args = self-> getArguments( self );
+   argCount = self-> getArgumentCount( self );
+
+   // Positional arguments
+   for( i = 0; i < argCount; i++ )
+   {
+      if( args[ i ]-> isRequired( args[ i ] ) )
       {
-         fprintf( stderr, "\n%s - %s\n\n", progname, description );
+         fprintf( stderr, " <%s>", args[ i ]-> getName( args[ i ] ) );
       }
       else
       {
-         fprintf( stderr, "\n%s\n\n", progname );
+         fprintf( stderr, " [%s]", args[ i ]-> getName( args[ i ] ) );
       }
-      fprintf( stderr, "Usage: %s <command> [options]\n\n", progname );
-      subCount = self-> getSubCommandCount( self );
-      subs = self-> getSubCommands( self );
-      if( subCount > 0 && subs != NULL )
-      {
-         fprintf( stderr, "Available commands:\n" );
-         for( int i = 0; i < subCount; i++ )
-         {
-            fprintf( stderr, "  %-12s %s\n", subs[i]-> getName( subs[i] ), subs[i]-> getDescription( subs[i] ) ? subs[i]-> getDescription( subs[i] ) : "" );
-         }
-         fprintf( stderr, "\n" );
-      }
-      free( path );
-      free( progname );
-      return;
-   }
-
-   space = strchr( path, ' ' );
-   if( space != NULL && *( space + 1 ) != '\0' )
-   {
-      trimmedPath = space + 1;
-   }
-
-   fprintf( stderr, "Help for: %s\n\n", trimmedPath );
-   if( self-> getDescription( self ) )
-   {
-      fprintf( stderr, "%s\n\n", self-> getDescription( self ) );
-   }
-
-   fprintf( stderr, "Usage: %s", trimmedPath );
-
-   arguments = self-> getArguments( self );
-   argCount = self-> getArgumentCount( self );
-   for( int i = 0; i < argCount; i++ )
-   {
-   const Argument_t *arg = arguments[ i ];
-
-      if( arg-> isRequired( arg ) )
-      {
-         fprintf( stderr, " <%s>", arg-> getName( arg ) );
-      }
-   }
-   for( int i = 0; i < argCount; i++ )
-   {
-   const Argument_t *arg = arguments[ i ];
-
-      if( !arg-> isRequired( arg ) )
-      {
-         fprintf( stderr, " [%s]", arg-> getName( arg ) );
-      }
-   }
-   fputs( "\n\n", stderr );
-   if( argCount > 0 )
-   {
-      fputs( "Arguments:\n", stderr );
-      for( int i = 0; i < argCount; i++ )
-      {
-      const Argument_t *arg = arguments[ i ];
-
-         fprintf( stderr, "  %-12s %s%s", arg-> getName( arg ), arg-> getDescription( arg ), arg-> isRequired( arg ) ? " (required)" : "" );
-         if( !arg-> isRequired( arg ) && arg-> getValue( arg ) )
-         {
-            fprintf( stderr, " [default: %s]", arg-> getValue( arg ) );
-         }
-         fputs( "\n", stderr );
-      }
-      fputs( "\n", stderr );
    }
 
    flags = self-> getFlags( self );
    flagCount = self-> getFlagCount( self );
+
    if( flagCount > 0 )
    {
-      fputs( "Flags:\n", stderr );
-      for( int i = 0; i < flagCount; i++ )
-      {
-      const Flag_t *flag = flags[ i ];
-
-         fprintf( stderr, "  -%c, --%-12s %s\n", flag-> getShortName( flag ), flag-> getName( flag ), flag-> getDescription( flag ) );
-      }
-      fputs( "\n", stderr );
+      fprintf( stderr, " [OPTIONS]" );
    }
-   free( path );
-   free( progname );
-}
 
-
-// Function to create a CommandContext
-static CommandContext_t * createCommandContext( Command_t *self )
-{
-const struct privateData *private;
-
-   if( self == NULL )
+   if( private-> subCommandCount > 0 )
    {
-      return NULL;
+      fprintf( stderr, " COMMAND" );
    }
 
-   private = self-> private;
+   fputs( "\n\n", stderr );
 
-   return newCommandContext( self, private-> getArguments( self ), private-> getArgumentCount( self ), private-> getFlags( self ), private-> getFlagCount( self ) );
+   // Subcommands section
+   if( private-> subCommandCount > 0 )
+   {
+      fputs( "Commands:\n", stderr );
+
+      // Sort
+      for( int pass = 0; pass < private-> subCommandCount - 1; pass++ )
+      {
+         for( i = 0; i < private-> subCommandCount - 1; i++ )
+         {
+         Command_t *a = private-> subCommands[ i ];
+         Command_t *b = private-> subCommands[ i + 1 ];
+
+            if( strcmp( a-> getName( a ), b-> getName( b ) ) > 0 )
+            {
+            Command_t *tmp = private-> subCommands[ i ];
+
+               private-> subCommands[ i ] = b;
+               private-> subCommands[ i + 1 ] = tmp;
+            }
+         }
+      }
+
+      for( i = 0; i < private-> subCommandCount; i++ )
+      {
+      Command_t *sub = private-> subCommands[ i ];
+      const char *desc = sub-> getDescription( sub );
+
+         fprintf( stderr, "   %-12s %s\n", sub-> getName( sub ), desc != NULL ? desc : "" );
+      }
+      fprintf( stderr, "\nRun '%s COMMAND --help' for more information on a command.\n\n", fullPath );
+   }
+
+   // Flags section
+   if( flagCount > 0 )
+   {
+      fputs( "Options:\n", stderr );
+      for( i = 0; i < flagCount; i++ )
+      {
+      Flag_t *f = flags[ i ];
+      char shortBuf[ 8 ] = { 0 };
+
+         if( f-> getShortName( f ) )
+         {
+            snprintf( shortBuf, sizeof( shortBuf ), "-%c, ", f-> getShortName( f ) );
+         }
+
+         fprintf( stderr, "   %s--%-18s %s\n", f-> getShortName( f ) ? shortBuf : "    ", f-> getName( f ), f-> getDescription( f ) ? f-> getDescription( f ) : "" );
+      }
+   }
+
+   free( fullPath );
 }
 
 
@@ -486,166 +422,168 @@ Flag_t *flag;
 }
 
 
+static Command_t *findSubCommand( Command_t *cmd, const char *name )
+{
+PrivateData *private = cmd->private;
+int i;
+
+   for( i = 0; i < private-> subCommandCount; i++ )
+   {
+   Command_t *sub = private-> subCommands[ i ];
+
+      if( strcmp( sub-> getName( sub ), name ) == 0 )
+      {
+         return sub;
+      }
+   }
+   return NULL;
+}
+
+
 static int parse( Command_t *self, int argc, char *argv[] )
 {
-Command_t *current = NULL;
-int i = 1;
-int argIndex = 0;
-Argument_t *arg = NULL, **arguments;
+Command_t *current = self;
+PrivateData *private;
+Argument_t **arguments;
 int argCount;
-const struct privateData *private;
+int i = 1;
+int pos = 0;
+int j;
+int result;
 
    if( argc == 1 )
    {
-      printHelp( self );
+      self-> printHelp( self );
       return CLI_SUCCESS;
    }
-
-   if( i >= argc )
+   if( self == NULL || argv == NULL || argc < 0 )
    {
       return CLI_ERROR_INVALID_ARGUMENT;
-   }
-   if( self == NULL )
-   {
-      return CLI_ERROR_INVALID_ARGUMENT;
-   }
-   if( argv == NULL )
-   {
-      return CLI_ERROR_INVALID_ARGUMENT;
-   }
-   if( argc < 0 )
-   {
-      return CLI_ERROR_INVALID_ARGUMENT;
-   }
-   if( argc < 1 )
-   {
-      return CLI_SUCCESS;
    }
 
-   // First, process flags and subcommands
-   current = self;
-   while( i < argc && i >= 0 )
+   // Early help detection anywhere in the command chain
+   for( i = 1; i < argc; i++ )
    {
-      if( argv[ i ][ 0 ] == '-' )
+      if( strcmp( argv[ i ], "help" ) == 0 || strcmp( argv[ i ], "--help" ) == 0 || strcmp( argv[ i ], "-h" ) == 0 )
       {
-         if( !parseFlag( current, argv[ i ] ) )
+         current = self;
+         for( j = 1; j < i; j++ )
          {
-            fprintf( stderr, "Error: Unknown flag '%s'\n", argv[ i ] );
-            printHelp( current );
-            return CLI_ERROR_PARSE_FAILED;
+         Command_t *sub;
+
+            if( ( sub = findSubCommand( current, argv[ j ] ) ) == NULL )
+            {
+               break;
+            }
+            current = sub;
          }
-         i++;
-         continue;
-      }
-      if( strcmp( argv[ i ], "help" ) == 0 )
-      {
-         printHelp( current );
+         current-> printHelp( current );
          return CLI_SUCCESS;
       }
-      
-      // Try to find a subcommand
-      findSubCmdToken = argv[ i ];
-      findSubCmdFound = NULL;
-      current-> forEachSubCommand( current, findSubCmd );
-      
-      if( findSubCmdFound != NULL )
-      {
-         // Found a subcommand, navigate to it
-         current = findSubCmdFound;
-         i++;
-         continue;
-      }
-      
-      // No subcommand found, treat as argument
-      break;
    }
 
-   // Now, process remaining argv[ i ] as arguments for the current command
+   // Resolve subcommand chain
+   i = 1;
+   while( i < argc && argv[ i ][ 0 ] != '-' )
+   {
+   Command_t *sub;
+
+      if( ( sub = findSubCommand( current, argv[ i ] ) ) == NULL )
+      {
+         break;
+      }
+      current = sub;
+      i++;
+   }
+
+   // Unknown root command?
+   if( current == self && argc > 1 && argv[ 1 ][ 0 ] != '-' && i == 1 )
+   {
+      fprintf( stderr, "Error: Unknown command '%s'\n", argv[ 1 ] );
+      self-> printHelp( self );
+      return CLI_ERROR_PARSE_FAILED;
+   }
+
+   // Unknown subcommand in a group?
+   private = current-> private;
+   if( i < argc && argv[ i ][ 0 ] != '-' && private-> handler == NULL )
+   {
+      fprintf( stderr, "Error: Unknown subcommand '%s'\n", argv[ i ] );
+      current-> printHelp( current );
+      return CLI_ERROR_PARSE_FAILED;
+   }
+
+   arguments = current-> getArguments( current );
+   argCount  = current-> getArgumentCount( current );
+
+   // Parse flags + positional arguments
    for( ; i < argc; i++ )
    {
-      if( current == NULL )
-      {
-         return CLI_ERROR_INVALID_ARGUMENT;
-      }
       if( argv[ i ][ 0 ] == '-' )
       {
          if( !parseFlag( current, argv[ i ] ) )
          {
             fprintf( stderr, "Error: Unknown flag '%s'\n", argv[ i ] );
-            printHelp( current );
+            current-> printHelp( current );
             return CLI_ERROR_PARSE_FAILED;
          }
          continue;
       }
-      if( argIndex < current-> getArgumentCount( current ) )
-      {
-         arguments = current-> getArguments( current );
 
-         if( arguments != NULL )
+      if( pos < argCount )
+      {
+         arguments[ pos ]-> setValue( arguments[ pos ], argv[ i ] );
+         pos++;
+      }
+      else
+      {
+         if( argCount == 0 )
          {
-            arg = arguments[ argIndex ];
-            arg-> setValue( arg, argv[ i ] );
-            argIndex++;
+            fprintf( stderr, "Error: Unexpected argument '%s' (command takes no arguments)\n", argv[ i ] );
          }
          else
          {
             fputs( "Error: Too many arguments\n", stderr );
-            printHelp( current );
-            return CLI_ERROR_INVALID_ARGUMENT;
          }
-      }
-      else
-      {
-         fputs( "Error: Too many arguments\n", stderr );
-         printHelp( current );
+         current-> printHelp( current );
          return CLI_ERROR_INVALID_ARGUMENT;
       }
    }
 
-   // Check if all required arguments were provided
-   arguments = current-> getArguments( current );
-   argCount = current-> getArgumentCount( current );
-   if( arguments != NULL )
+   // Check required arguments
+   for( j = 0; j < argCount; j++ )
    {
-      for( int j = 0; j < argCount; j++ )
+   Argument_t *a = arguments[ j ];
+
+      if( a-> isRequired( a ) && a-> getValue( a ) == NULL )
       {
-         arg = arguments[ j ];
-         if( arg-> isRequired( arg ) && arg-> getValue( arg ) == NULL )
-         {
-            fprintf( stderr, "Error: Required argument '%s' is missing\n", arg-> getName( arg ) );
-            printHelp( current );
-            return CLI_ERROR_INVALID_ARGUMENT;
-         }
+         fprintf( stderr, "Error: Required argument '%s' is missing\n", a-> getName( a ) );
+         current-> printHelp( current );
+         return CLI_ERROR_INVALID_ARGUMENT;
       }
    }
-   // Execute the command handler
-   private = current-> private;
-   if( private != NULL && private-> handler != NULL )
-   {
-   CommandContext_t *ctx = createCommandContext( current );
-   int result;
 
-      if( ctx == NULL )
+   // Execute handler if exists
+   if( private-> handler != NULL )
+   {
+   CommandContext_t *ctx;
+
+      if( ( ctx = newCommandContext( current, current-> getArguments( current ), current-> getArgumentCount( current ), current-> getFlags( current ), current-> getFlagCount( current ) ) ) == NULL )
       {
          fputs( "Error: Failed to create command context\n", stderr );
          return CLI_ERROR_CONTEXT_FAILED;
       }
       result = private-> handler( ctx );
       ctx-> delete( ctx );
-      if( result != CLI_SUCCESS )
+      if( result != CLI_SUCCESS && strcmp( current-> getName( current ), "help" ) != 0 )
       {
-         if( strcmp( current-> getName( current ), "help" ) != 0 )
-         {
-            fputs( "Error: Command execution failed\n", stderr );
-            printHelp( current );
-         }
-         return result;
+         fputs( "Error: Command execution failed\n", stderr );
+         current-> printHelp( current );
       }
+      return result;
    }
-   else
-   {
-      printHelp( current );
-   }
+
+   current-> printHelp( current );
    return CLI_SUCCESS;
 }
 
@@ -734,7 +672,7 @@ const struct privateData *private;
 }
 
 
-static void forEachSubCommand( Command_t *self, bool ( *cb )( Command_t * ) )
+static void forEachSubCommand( const Command_t *self, bool ( *cb )( Command_t * ) )
 {
 int count;
 Command_t **subs;
@@ -792,12 +730,6 @@ struct privateData *private;
    }
 
    private-> handler = handler;
-   private-> getSubCommands = getSubCommands;
-   private-> getSubCommandCount = getSubCommandCount;
-   private-> getArguments = getArguments;
-   private-> getArgumentCount = getArgumentCount;
-   private-> getFlags = getFlags;
-   private-> getFlagCount = getFlagCount;
    self-> private = private;
    self-> addSubCommand = addSubCommand;
    self-> addArgument = addArgument;
@@ -806,7 +738,6 @@ struct privateData *private;
    self-> delete = delete;
    self-> getName = getName;
    self-> getDescription = getDescription;
-   self-> hasArgument = hasArgument;
    self-> getArgumentValue = getArgumentValue;
    self-> getArguments = getArguments;
    self-> getArgumentCount = getArgumentCount;

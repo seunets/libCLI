@@ -25,7 +25,7 @@ typedef struct CLI
    void *private;
 } CLI_t;
 
-CLI_t * newCLI( void );
+CLI_t * newCLI( const char * );
 
 
 #endif

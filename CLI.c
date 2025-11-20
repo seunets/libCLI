@@ -224,7 +224,7 @@ struct privateData *private;
 }
 
 
-CLI_t * newCLI( void )
+CLI_t * newCLI( const char *description )
 {
 CLI_t *self;
 struct privateData *private;
@@ -247,7 +247,7 @@ struct privateData *private;
    self-> addFlag = addFlag;
    self-> parse = parse;
    self-> delete = delete;
-   private-> rootCommand = newCommand( getprogname(), NULL, NULL );
+   private-> rootCommand = newCommand( getprogname(), description, NULL );
 
    return self;
 }

@@ -16,7 +16,7 @@ A lightweight C library for building command-line interfaces with support for co
 
 ### Core CLI Functions
 
-#### `CLI_t * newCLI( void )`
+#### `CLI_t * newCLI( const char *description )`
 Creates a new CLI instance. Returns `NULL` on memory allocation failure.
 
 #### `int addCommand( const CLI_t *cli, const char *name, const char *description, int ( *handler )( const CommandContext_t *context ) )`

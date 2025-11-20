@@ -15,7 +15,6 @@ typedef struct Command
    void ( *delete )( struct Command * );
    const char * ( *getName )( const struct Command * );
    const char * ( *getDescription )( const struct Command * );
-   bool ( *hasArgument )( const struct Command *, const char * );
    const char * ( *getArgumentValue )( const struct Command *, const char * );
    Argument_t ** ( *getArguments )( const struct Command * );
    int ( *getArgumentCount )( const struct Command * );
@@ -23,8 +22,8 @@ typedef struct Command
    int ( *getFlagCount )( const struct Command * );
    struct Command ** ( *getSubCommands )( const struct Command * );
    int ( *getSubCommandCount )( const struct Command * );
-   void ( *printHelp )( struct Command * );
-   void ( *forEachSubCommand )( struct Command *, bool( * )( struct Command * ) );
+   void ( *printHelp )( const struct Command * );
+   void ( *forEachSubCommand )( const struct Command *, bool( * )( struct Command * ) );
    void *private;
 } Command_t;
 
