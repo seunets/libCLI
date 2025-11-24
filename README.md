@@ -92,7 +92,7 @@ static int initHandler( const CommandContext_t *context )
 
 int main( int argc, char *argv[] )
 {
-CLI_t *cli = newCLI();
+CLI_t *cli = newCLI( "Example" );
 int err;
 
    if( cli == NULL )
