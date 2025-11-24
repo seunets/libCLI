@@ -19,10 +19,9 @@ typedef struct privateData
    Flag_t **flags;
    struct Command *parent;
    int ( *handler )( const CommandContext_t * );
+   int subCommandCount;
    int argumentCount;
    int flagCount;
-   int subCommandCount;
-   char pad[ 4 ];
 } PrivateData;
 
 
@@ -73,7 +72,7 @@ static Argument_t * getCommandArgument( const Command_t *self, const char *name 
 Argument_t **arguments;
 int count;
 int i;
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || name == NULL )
    {
@@ -115,7 +114,7 @@ Argument_t *arg = getCommandArgument( cmd, name );
 
 static char * buildCommandPath( const Command_t *self )
 {
-const struct privateData *private = self-> private;
+const PrivateData *private = self-> private;
 size_t len;
 char *buf;
 char *parentPath;
@@ -262,7 +261,7 @@ int i, argCount, flagCount;
 
 static int addSubCommand( Command_t *self, Command_t *subCommand )
 {
-struct privateData *private = self-> private;
+PrivateData *private = self-> private;
 Command_t **tmp;
 
    if( ( tmp = realloc( private-> subCommands, sizeof( Command_t * ) * ( size_t ) ( private-> subCommandCount + 1 ) ) ) == NULL )
@@ -270,7 +269,7 @@ Command_t **tmp;
       return CLI_ERROR_MEMORY;
    }
 
-   ( ( struct privateData * )subCommand-> private )-> parent = self;
+   ( ( PrivateData * )subCommand-> private )-> parent = self;
    private-> subCommands = tmp;
    private-> subCommands[ private-> subCommandCount ] = subCommand;
    private-> subCommandCount++;
@@ -281,7 +280,7 @@ Command_t **tmp;
 
 static int addArgument( const Command_t *self, Argument_t *argument )
 {
-struct privateData *private = (struct privateData *)self-> private;
+PrivateData *private = (PrivateData *)self-> private;
 Argument_t **tmp;
 
    if( ( tmp = realloc( private-> arguments, sizeof( Argument_t * ) * ( size_t ) ( private-> argumentCount + 1 ) ) ) == NULL )
@@ -299,7 +298,7 @@ Argument_t **tmp;
 
 static int addFlag( const Command_t *self, Flag_t *flag )
 {
-struct privateData *private = (struct privateData *)self-> private;
+PrivateData *private = (PrivateData *)self-> private;
 Flag_t **tmp;
 
    if( ( tmp = realloc( private-> flags, sizeof( Flag_t * ) * ( size_t ) ( private-> flagCount + 1 ) ) ) == NULL )
@@ -317,7 +316,7 @@ Flag_t **tmp;
 
 static void delete( Command_t *self )
 {
-struct privateData *private;
+PrivateData *private;
 
    if( self == NULL )
    {
@@ -364,7 +363,7 @@ struct privateData *private;
 
 static bool parseFlag( const Command_t *self, const char *flagStr )
 {
-const struct privateData *private;
+const PrivateData *private;
 Flag_t *flag;
 
    if( self == NULL || self-> private == NULL || flagStr == NULL || flagStr[ 0 ] != '-' )
@@ -590,7 +589,7 @@ int result;
 
 static Command_t **getSubCommands( const Command_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -604,7 +603,7 @@ const struct privateData *private;
 
 static int getSubCommandCount( const Command_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -618,7 +617,7 @@ const struct privateData *private;
 
 static Argument_t **getArguments( const Command_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -632,7 +631,7 @@ const struct privateData *private;
 
 static int getArgumentCount( const Command_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -646,7 +645,7 @@ const struct privateData *private;
 
 static Flag_t **getFlags( const Command_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -660,7 +659,7 @@ const struct privateData *private;
 
 static int getFlagCount( const Command_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -697,7 +696,7 @@ Command_t **subs;
 Command_t * newCommand( const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
 Command_t *self;
-struct privateData *private;
+PrivateData *private;
 
    if( ( self = calloc( 1, sizeof( Command_t ) ) ) == NULL )
    {
@@ -705,7 +704,7 @@ struct privateData *private;
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( struct privateData ) ) ) == NULL )
+   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
    {
       fputs( "Error: Failed to allocate memory for CommandPrivate_t.\n", stderr );
       free( self );

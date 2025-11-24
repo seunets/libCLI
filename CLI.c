@@ -9,14 +9,15 @@
 #include "Flag.h"
 
 
-struct privateData
+typedef struct privateData
 {
    Command_t *rootCommand;
-};
+} PrivateData;
 
 
 static const char *findSubCmdToken = NULL;
 static Command_t *findSubCmdFound = NULL;
+
 
 static bool findSubCmd( Command_t *sub )
 {
@@ -69,7 +70,7 @@ Command_t *current;
 
 static int addCommand( const CLI_t *self, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
-struct privateData *private = self-> private;
+PrivateData *private = self-> private;
 Command_t *cmd;
 
    if( ( cmd = newCommand( name, description, handler ) ) == NULL )
@@ -89,7 +90,7 @@ Command_t *cmd;
 
 static int addSubCommand( const CLI_t *self, const char *parentPath, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
-struct privateData *private = self-> private;
+PrivateData *private = self-> private;
 Command_t *parent, *sub;
 
    if( parentPath == NULL || *parentPath == '\0' )
@@ -121,7 +122,7 @@ Command_t *parent, *sub;
 
 static int addArgument( const CLI_t *self, const char *path, const char *name, const char *description, bool required )
 {
-struct privateData *private = self-> private;
+PrivateData *private = self-> private;
 Command_t *cmd;
 Argument_t *arg;
 
@@ -156,10 +157,9 @@ Argument_t *arg;
 
 static int addFlag( const CLI_t *self, const char *path, const char *name, char shortName, const char *description )
 {
-struct privateData *private = self-> private;
+PrivateData *private = self-> private;
 Command_t *cmd;
 Flag_t *flag;
-
 
    if( path != NULL && *path != '\0' )
    {
@@ -192,7 +192,7 @@ Flag_t *flag;
 
 static int parse( const CLI_t *self, int argc, char *argv[] )
 {
-   struct privateData *private = self-> private;
+PrivateData *private = self-> private;
 
    if( private-> rootCommand != NULL && private-> rootCommand-> parse != NULL )
    {
@@ -205,7 +205,7 @@ static int parse( const CLI_t *self, int argc, char *argv[] )
 
 static void delete( CLI_t *self )
 {
-struct privateData *private;
+PrivateData *private;
 
    if( self == NULL )
    {
@@ -227,14 +227,14 @@ struct privateData *private;
 CLI_t * newCLI( const char *description )
 {
 CLI_t *self;
-struct privateData *private;
+PrivateData *private;
 
    if( ( self = calloc( 1, sizeof( CLI_t ) ) ) == NULL )
    {
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( struct privateData ) ) ) == NULL )
+   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
    {
       free( self );
       return NULL;

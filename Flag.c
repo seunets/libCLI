@@ -4,19 +4,18 @@
 #include "Flag.h"
 
 
-struct privateData
+typedef struct privateData
 {
    char *name;
    char *description;
    char shortName;
    bool isSet;
-   char pad[ 6 ];
-};
+} PrivateData;
 
 
 static const char * getName( const Flag_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -30,7 +29,7 @@ const struct privateData *private;
 
 static const char * getDescription( const Flag_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -44,7 +43,7 @@ const struct privateData *private;
 
 static char getShortName( const Flag_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -58,7 +57,7 @@ const struct privateData *private;
 
 static bool isSet( const Flag_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -72,7 +71,7 @@ const struct privateData *private;
 
 static void set( const Flag_t *self )
 {
-struct privateData *private = self-> private;
+PrivateData *private = self-> private;
 
    private-> isSet = true;
 }
@@ -80,7 +79,7 @@ struct privateData *private = self-> private;
 
 static void delete( Flag_t *self )
 {
-struct privateData *private;
+PrivateData *private;
 
    if( self == NULL )
    {
@@ -100,14 +99,14 @@ struct privateData *private;
 Flag_t * newFlag( const char *name, char shortName, const char *description )
 {
 Flag_t *self;
-struct privateData *private;
+PrivateData *private;
 
    if( ( self = calloc( 1, sizeof( Flag_t ) ) ) == NULL )
    {
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( struct privateData ) ) ) == NULL )
+   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
    {
       free( self );
       return NULL;

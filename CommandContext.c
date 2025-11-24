@@ -1,6 +1,4 @@
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -10,19 +8,19 @@
 #include "Flag.h"
 
 
-struct privateData
+typedef struct privateData
 {
    struct Command *command;
    Argument_t **arguments;
-   int argumentCount;
    Flag_t **flags;
+   int argumentCount;
    int flagCount;
-};
+} PrivateData;
 
 
 static const char * getArgument( const CommandContext_t *self, const char *name )
 {
-struct privateData *private;
+PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -44,7 +42,7 @@ struct privateData *private;
 
 static bool getFlag( const CommandContext_t *self, const char *name )
 {
-struct privateData *private;
+PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -82,7 +80,7 @@ static void delete( CommandContext_t *self )
 CommandContext_t * newCommandContext( struct Command *cmd, Argument_t **arguments, int argumentCount, Flag_t **flags, int flagCount )
 {
 CommandContext_t *self;
-struct privateData *private;
+PrivateData *private;
 
    if( cmd == NULL )
    {
@@ -94,7 +92,7 @@ struct privateData *private;
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( struct privateData ) ) ) == NULL )
+   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
    {
       free( self );
       return NULL;

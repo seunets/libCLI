@@ -5,19 +5,18 @@
 #include "Argument.h"
 
 
-struct privateData
+typedef struct privateData
 {
    char *name;
    char *description;
    char *value;
    bool required;
-   char pad[ 7 ];
-};
+} PrivateData;
 
 
 static const char * getName( const Argument_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -31,7 +30,7 @@ const struct privateData *private;
 
 static const char * getDescription( const Argument_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -45,7 +44,7 @@ const struct privateData *private;
 
 static const char * getValue( const Argument_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -59,7 +58,7 @@ const struct privateData *private;
 
 static bool isRequired( const Argument_t *self )
 {
-const struct privateData *private;
+const PrivateData *private;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -73,7 +72,7 @@ const struct privateData *private;
 
 static void setValue( const Argument_t *self, const char *value )
 {
-struct privateData *private = NULL;
+PrivateData *private = NULL;
 
    if( self == NULL || self-> private == NULL )
    {
@@ -97,7 +96,7 @@ struct privateData *private = NULL;
 
 static void delete( Argument_t *self )
 {
-struct privateData *private;
+PrivateData *private;
 
    if( self == NULL )
    {
@@ -118,14 +117,14 @@ struct privateData *private;
 Argument_t * newArgument( const char *name, const char *description, bool required )
 {
 Argument_t *self;
-struct privateData *private;
+PrivateData *private;
 
    if( ( self = calloc( 1, sizeof( Argument_t ) ) ) == NULL )
    {
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( struct privateData ) ) ) == NULL )
+   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
    {
       free( self );
       return NULL;
