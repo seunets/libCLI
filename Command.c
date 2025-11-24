@@ -280,7 +280,7 @@ Command_t **tmp;
 
 static int addArgument( const Command_t *self, Argument_t *argument )
 {
-PrivateData *private = (PrivateData *)self-> private;
+PrivateData *private = self-> private;
 Argument_t **tmp;
 
    if( ( tmp = realloc( private-> arguments, sizeof( Argument_t * ) * ( size_t ) ( private-> argumentCount + 1 ) ) ) == NULL )
@@ -298,7 +298,7 @@ Argument_t **tmp;
 
 static int addFlag( const Command_t *self, Flag_t *flag )
 {
-PrivateData *private = (PrivateData *)self-> private;
+PrivateData *private = self-> private;
 Flag_t **tmp;
 
    if( ( tmp = realloc( private-> flags, sizeof( Flag_t * ) * ( size_t ) ( private-> flagCount + 1 ) ) ) == NULL )
