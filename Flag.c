@@ -77,14 +77,17 @@ PrivateData *private = self-> private;
 }
 
 
-static void delete( Flag_t *self )
+static void delete( Flag_t **selfPtr )
 {
 PrivateData *private;
+Flag_t *self;
 
-   if( self == NULL )
+   if( selfPtr == NULL || *selfPtr == NULL )
    {
       return;
    }
+
+   self = *selfPtr;
 
    if( ( private = self-> private ) != NULL )
    {
@@ -93,6 +96,7 @@ PrivateData *private;
       free( private );
    }
    free( self );
+   *selfPtr = NULL;
 }
 
 

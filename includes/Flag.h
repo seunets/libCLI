@@ -12,7 +12,7 @@ typedef struct Flag
    char ( *getShortName )( const struct Flag * );
    bool ( *isSet )( const struct Flag * );
    void ( *set )( const struct Flag * );
-   void ( *delete )( struct Flag * );
+   void ( *delete )( struct Flag ** );
    void *private;
 } Flag_t;
 

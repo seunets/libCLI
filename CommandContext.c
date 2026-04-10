@@ -62,18 +62,23 @@ PrivateData *private;
 }
 
 
-static void delete( CommandContext_t *self )
+static void delete( CommandContext_t **selfPtr )
 {
-   if( self == NULL )
+CommandContext_t *self;
+
+   if( selfPtr == NULL || *selfPtr == NULL )
    {
       return;
    }
+
+   self = *selfPtr;
 
    if( self-> private != NULL )
    {
       free( self-> private );
    }
    free( self );
+   *selfPtr = NULL;
 }
 
 

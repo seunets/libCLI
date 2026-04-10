@@ -80,7 +80,7 @@ Command_t *cmd;
 
    if( private-> rootCommand-> addSubCommand( private-> rootCommand, cmd ) != CLI_SUCCESS )
    {
-      cmd-> delete( cmd );
+      cmd-> delete( &cmd );
       return CLI_ERROR_MEMORY;
    }
 
@@ -112,7 +112,7 @@ Command_t *parent, *sub;
 
    if( parent-> addSubCommand( parent, sub ) != CLI_SUCCESS )
    {
-      sub-> delete( sub );
+      sub-> delete( &sub );
       return CLI_ERROR_MEMORY;
    }
 
@@ -147,7 +147,7 @@ Argument_t *arg;
 
    if( cmd-> addArgument( cmd, arg ) != CLI_SUCCESS )
    {
-      arg-> delete( arg );
+      arg-> delete( &arg );
       return CLI_ERROR_MEMORY;
    }
 
@@ -182,7 +182,7 @@ Flag_t *flag;
 
    if( cmd-> addFlag( cmd, flag ) != CLI_SUCCESS )
    {
-      flag-> delete( flag );
+      flag-> delete( &flag );
       return CLI_ERROR_MEMORY;
    }
 
@@ -203,24 +203,28 @@ PrivateData *private = self-> private;
 }
 
 
-static void delete( CLI_t *self )
+static void delete( CLI_t **selfPtr )
 {
 PrivateData *private;
+CLI_t *self;
 
-   if( self == NULL )
+   if( selfPtr == NULL || *selfPtr == NULL )
    {
       return;
    }
+
+   self = *selfPtr;
 
    if( ( private = self-> private ) != NULL )
    {
       if( private-> rootCommand != NULL )
       {
-         private-> rootCommand-> delete( private-> rootCommand );
+         private-> rootCommand-> delete( &private-> rootCommand );
       }
       free( private );
    }
    free( self );
+   *selfPtr = NULL;
 }
 
 

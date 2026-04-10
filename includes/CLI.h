@@ -21,7 +21,7 @@ typedef struct CLI
    int ( *addArgument )( const struct CLI *, const char *, const char *, const char *, bool );
    int ( *addFlag )( const struct CLI *, const char *, const char *, char, const char * );
    int ( *parse )( const struct CLI *, int, char *[] );
-   void ( *delete )( struct CLI * );
+   void ( *delete )( struct CLI ** );
    void *private;
 } CLI_t;
 

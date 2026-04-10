@@ -34,7 +34,7 @@ Adds a flag to a command. `path` specifies the command path. Returns `CLI_SUCCES
 #### `int parse( const CLI_t *cli, int argc, char *argv[] )`
 Parses the command line arguments. Returns `CLI_SUCCESS` on success, or a negative error code on failure.
 
-#### `void delete( CLI_t *cli )`
+#### `void delete( CLI_t **cli )`
 Deletes the CLI instance and all associated memory.
 
 
@@ -105,7 +105,7 @@ int err;
    if( err != CLI_SUCCESS )
    {
       fprintf( stderr, "Failed to add command: %d\n", err );
-      cli-> delete( cli );
+      cli-> delete( &cli );
       return 1;
    }
 
@@ -116,11 +116,11 @@ int err;
    if( err != CLI_SUCCESS )
    {
       fprintf( stderr, "Error parsing command line: %d\n", err );
-      cli-> delete( cli );
+      cli-> delete( &cli );
       return 1;
    }
 
-   cli-> delete( cli );
+   cli-> delete( &cli );
 
    return 0;
 }

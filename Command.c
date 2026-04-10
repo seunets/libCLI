@@ -314,14 +314,17 @@ Flag_t **tmp;
 }
 
 
-static void delete( Command_t *self )
+static void delete( Command_t **selfPtr )
 {
 PrivateData *private;
+Command_t *self;
 
-   if( self == NULL )
+   if( selfPtr == NULL || *selfPtr == NULL )
    {
       return;
    }
+
+   self = *selfPtr;
 
    private = self-> private;
    if( private != NULL )
@@ -330,7 +333,7 @@ PrivateData *private;
       {
          for( int i = 0; i < private-> subCommandCount; i++ )
          {
-            private-> subCommands[ i ]-> delete( private-> subCommands[ i ] );
+            private-> subCommands[ i ]-> delete( &private-> subCommands[ i ] );
          }
          free( private-> subCommands );
       }
@@ -339,7 +342,7 @@ PrivateData *private;
       {
          for( int i = 0; i < private-> argumentCount; i++ )
          {
-            private-> arguments[ i ]-> delete( private-> arguments[ i ] );
+            private-> arguments[ i ]-> delete( &private-> arguments[ i ] );
          }
          free( private-> arguments );
       }
@@ -348,7 +351,7 @@ PrivateData *private;
       {
          for( int i = 0; i < private-> flagCount; i++ )
          {
-            private-> flags[ i ]-> delete( private-> flags[ i ] );
+            private-> flags[ i ]-> delete( &private-> flags[ i ] );
          }
          free( private-> flags );
       }
@@ -358,6 +361,7 @@ PrivateData *private;
       free( private );
    }
    free( self );
+   *selfPtr = NULL;
 }
 
 
@@ -573,7 +577,7 @@ int result;
          return CLI_ERROR_CONTEXT_FAILED;
       }
       result = private-> handler( ctx );
-      ctx-> delete( ctx );
+      ctx-> delete( &ctx );
       if( result != CLI_SUCCESS && strcmp( current-> getName( current ), "help" ) != 0 )
       {
          fputs( "Error: Command execution failed\n", stderr );

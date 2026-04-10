@@ -94,14 +94,17 @@ PrivateData *private = NULL;
 }
 
 
-static void delete( Argument_t *self )
+static void delete( Argument_t **selfPtr )
 {
 PrivateData *private;
+Argument_t *self;
 
-   if( self == NULL )
+   if( selfPtr == NULL || *selfPtr == NULL )
    {
       return;
    }
+
+   self = *selfPtr;
 
    if( ( private = self-> private ) != NULL )
    {
@@ -111,6 +114,7 @@ PrivateData *private;
       free( private );
    }
    free( self );
+   *selfPtr = NULL;
 }
 
 

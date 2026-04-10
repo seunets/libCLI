@@ -12,7 +12,7 @@ typedef struct Command
    int ( *addArgument )( const struct Command *, struct Argument * );
    int ( *addFlag )( const struct Command *, struct Flag * );
    int ( *parse )( struct Command *, int, char *[] );
-   void ( *delete )( struct Command * );
+   void ( *delete )( struct Command ** );
    const char * ( *getName )( const struct Command * );
    const char * ( *getDescription )( const struct Command * );
    const char * ( *getArgumentValue )( const struct Command *, const char * );
