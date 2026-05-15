@@ -74,8 +74,8 @@ Always check the return value of all API calls and handle errors accordingly.
 
 static int initHandler( const CommandContext_t *context )
 {
-   const char *resource = context-> getArgument( context, "resource" );
-   bool verbose = context-> getFlag( context, "verbose" );
+const char *resource = context-> getArgument( context, "resource" );
+bool verbose = context-> getFlag( context, "verbose" );
 
    if( verbose )
    {

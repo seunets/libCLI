@@ -13,7 +13,6 @@ typedef struct Flag
    bool ( *isSet )( const struct Flag * );
    void ( *set )( const struct Flag * );
    void ( *delete )( struct Flag ** );
-   void *private;
 } Flag_t;
 
 Flag_t * newFlag( const char *, char, const char * );

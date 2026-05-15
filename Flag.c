@@ -4,143 +4,128 @@
 #include "Flag.h"
 
 
-typedef struct privateData
+typedef struct
 {
+   Flag_t interface;
    char *name;
    char *description;
    char shortName;
    bool isSet;
-} PrivateData;
+} Implementation;
 
 
 static const char * getName( const Flag_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> name;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> name;
 }
 
 
 static const char * getDescription( const Flag_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> description;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> description;
 }
 
 
 static char getShortName( const Flag_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return '\0';
    }
 
-   private = self-> private;
-   return private-> shortName;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> shortName;
 }
 
 
 static bool isSet( const Flag_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return false;
    }
 
-   private = self-> private;
-   return private-> isSet;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> isSet;
 }
 
 
 static void set( const Flag_t *self )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 
-   private-> isSet = true;
+   impl-> isSet = true;
 }
 
 
 static void delete( Flag_t **selfPtr )
 {
-PrivateData *private;
-Flag_t *self;
+Implementation *impl;
 
    if( selfPtr == NULL || *selfPtr == NULL )
    {
       return;
    }
 
-   self = *selfPtr;
-
-   if( ( private = self-> private ) != NULL )
-   {
-      free( private-> name );
-      free( private-> description );
-      free( private );
-   }
-   free( self );
+   impl = __containerof( *selfPtr, Implementation, interface );
+   free( impl-> name );
+   free( impl-> description );
+   free( impl );
    *selfPtr = NULL;
 }
 
 
 Flag_t * newFlag( const char *name, char shortName, const char *description )
 {
-Flag_t *self;
-PrivateData *private;
+Implementation *self;
 
-   if( ( self = calloc( 1, sizeof( Flag_t ) ) ) == NULL )
+   if( ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
    {
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
+   if( ( self-> name = strdup( name ) ) == NULL )
    {
-      free( self );
-      return NULL;
-   }
-
-   if( ( private-> name = strdup( name ) ) == NULL )
-   {
-      free( private );
       free( self );
       return NULL;
    }
 
    if( description != NULL )
    {
-      if( ( private-> description = strdup( description ) ) == NULL )
+      if( ( self-> description = strdup( description ) ) == NULL )
       {
-         free( private-> name );
-         free( private );
+         free( self-> name );
          free( self );
          return NULL;
       }
    }
-   private-> shortName = shortName;
-   self-> private = private;
-   self-> getName = getName;
-   self-> getDescription = getDescription;
-   self-> getShortName = getShortName;
-   self-> isSet = isSet;
-   self-> set = set;
-   self-> delete = delete;
+   self-> shortName = shortName;
+   self-> interface.getName = getName;
+   self-> interface.getDescription = getDescription;
+   self-> interface.getShortName = getShortName;
+   self-> interface.isSet = isSet;
+   self-> interface.set = set;
+   self-> interface.delete = delete;
 
-   return self;
+   return &self-> interface;
 }

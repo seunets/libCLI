@@ -5,160 +5,147 @@
 #include "Argument.h"
 
 
-typedef struct privateData
+typedef struct
 {
+   Argument_t interface;
    char *name;
    char *description;
    char *value;
    bool required;
-} PrivateData;
+} Implementation;
 
 
 static const char * getName( const Argument_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> name;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> name;
 }
 
 
 static const char * getDescription( const Argument_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> description;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> description;
 }
 
 
 static const char * getValue( const Argument_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> value;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> value;
 }
 
 
 static bool isRequired( const Argument_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return false;
    }
 
-   private = self-> private;
-   return private-> required;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> required;
 }
 
 
 static void setValue( const Argument_t *self, const char *value )
 {
-PrivateData *private = NULL;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return;
    }
 
-   if( ( private = self-> private ) != NULL )
+   if( ( impl = __containerof( self, Implementation, interface ) ) != NULL )
    {
-      free( private-> value );
+      free( impl-> value );
    }
    if( value != NULL )
    {
-      private-> value = strdup( value );
+      impl-> value = strdup( value );
    }
    else
    {
-      private-> value = NULL;
+      impl-> value = NULL;
    }
 }
 
 
 static void delete( Argument_t **selfPtr )
 {
-PrivateData *private;
-Argument_t *self;
+Implementation *impl;
 
    if( selfPtr == NULL || *selfPtr == NULL )
    {
       return;
    }
 
-   self = *selfPtr;
-
-   if( ( private = self-> private ) != NULL )
+   if( ( impl = __containerof( *selfPtr, Implementation, interface ) ) != NULL )
    {
-      free( private-> name );
-      free( private-> description );
-      free( private-> value );
-      free( private );
+      free( impl-> name );
+      free( impl-> description );
+      free( impl-> value );
+      free( impl );
    }
-   free( self );
    *selfPtr = NULL;
 }
 
 
 Argument_t * newArgument( const char *name, const char *description, bool required )
 {
-Argument_t *self;
-PrivateData *private;
+Implementation *self;
 
-   if( ( self = calloc( 1, sizeof( Argument_t ) ) ) == NULL )
+   if( ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
    {
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
+   if( ( self-> name = strdup( name ) ) == NULL )
    {
-      free( self );
-      return NULL;
-   }
-
-   if( ( private-> name = strdup( name ) ) == NULL )
-   {
-      free( private );
       free( self );
       return NULL;
    }
 
    if( description != NULL )
    {
-      if( ( private-> description = strdup( description ) ) == NULL )
+      if( ( self-> description = strdup( description ) ) == NULL )
       {
-         free( private-> name );
-         free( private );
+         free( self-> name );
          free( self );
          return NULL;
       }
    }
-   private-> required = required;
-   self-> private = private;
-   self-> getName = getName;
-   self-> getDescription = getDescription;
-   self-> getValue = getValue;
-   self-> isRequired = isRequired;
-   self-> setValue = setValue;
-   self-> delete = delete;
+   self-> required = required;
+   self-> interface.getName = getName;
+   self-> interface.getDescription = getDescription;
+   self-> interface.getValue = getValue;
+   self-> interface.isRequired = isRequired;
+   self-> interface.setValue = setValue;
+   self-> interface.delete = delete;
 
-   return self;
+   return &self-> interface;
 }

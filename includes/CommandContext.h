@@ -14,7 +14,6 @@ typedef struct CommandContext
    const char * ( *getArgument )( const struct CommandContext *, const char * );
    bool ( *getFlag )( const struct CommandContext *, const char * );
    void ( *delete )( struct CommandContext ** );
-   void *private;
 } CommandContext_t;
 
 CommandContext_t * newCommandContext( struct Command *, Argument_t **, int, Flag_t **, int );

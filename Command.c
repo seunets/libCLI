@@ -1,4 +1,3 @@
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -10,8 +9,9 @@
 #include "CLI.h"
 
 
-typedef struct privateData
+typedef struct
 {
+   Command_t interface;
    char *name;
    char *description;
    struct Command **subCommands;
@@ -22,34 +22,34 @@ typedef struct privateData
    int subCommandCount;
    int argumentCount;
    int flagCount;
-} PrivateData;
+} Implementation;
 
 
 static const char * getName( const Command_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> name;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> name;
 }
 
 
 static const char * getDescription( const Command_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> description;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> description;
 }
 
 
@@ -72,23 +72,14 @@ static Argument_t * getCommandArgument( const Command_t *self, const char *name 
 Argument_t **arguments;
 int count;
 int i;
-const PrivateData *private;
 
-   if( self == NULL || name == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   if( ( private = self-> private ) != NULL )
-   {
-      arguments = self-> getArguments( self );
-      count = self-> getArgumentCount( self );
-   }
-   else
-   {
-      arguments = NULL;
-      count = 0;
-   }
+   arguments = self-> getArguments( self );
+   count = self-> getArgumentCount( self );
 
    if( arguments != NULL && ( i = findArgumentByName( arguments, count, name ) ) >= 0 )
    {
@@ -114,16 +105,16 @@ Argument_t *arg = getCommandArgument( cmd, name );
 
 static char * buildCommandPath( const Command_t *self )
 {
-const PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 size_t len;
 char *buf;
 char *parentPath;
 
-   if( private-> parent == NULL )
+   if( impl-> parent == NULL )
    {
    char *result;
 
-      if( ( result = strdup( private-> name ) ) == NULL )
+      if( ( result = strdup( impl-> name ) ) == NULL )
       {
          return NULL;
       }
@@ -132,19 +123,19 @@ char *parentPath;
    }
    else
    {
-      if( ( parentPath = buildCommandPath( private-> parent ) ) == NULL )
+      if( ( parentPath = buildCommandPath( impl-> parent ) ) == NULL )
       {
          return NULL;
       }
 
-      len = strlen( parentPath ) + strlen( private-> name ) + 2;
+      len = strlen( parentPath ) + strlen( impl-> name ) + 2;
       if( ( buf = calloc( 1, len ) ) == NULL )
       {
          free( parentPath );
          return NULL;
       }
 
-      snprintf( buf, len, "%s %s", parentPath, private-> name );
+      snprintf( buf, len, "%s %s", parentPath, impl-> name );
       free( parentPath );
 
       return buf;
@@ -154,21 +145,21 @@ char *parentPath;
 
 static void printHelp( const Command_t *self )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 char *fullPath = buildCommandPath( self );
 Argument_t **args;
 Flag_t **flags;
 int i, argCount, flagCount;
 
-   if( self == NULL || private == NULL )
+   if( self == NULL )
    {
       free( fullPath );
       return;
    }
 
-   if( private-> description != NULL )
+   if( impl-> description != NULL )
    {
-      fprintf( stderr, "%s\n\n", private-> description );
+      fprintf( stderr, "%s\n\n", impl-> description );
    }
 
    fprintf( stderr, "Usage: %s", fullPath );
@@ -197,7 +188,7 @@ int i, argCount, flagCount;
       fprintf( stderr, " [OPTIONS]" );
    }
 
-   if( private-> subCommandCount > 0 )
+   if( impl-> subCommandCount > 0 )
    {
       fprintf( stderr, " COMMAND" );
    }
@@ -205,31 +196,31 @@ int i, argCount, flagCount;
    fputs( "\n\n", stderr );
 
    // Subcommands section
-   if( private-> subCommandCount > 0 )
+   if( impl-> subCommandCount > 0 )
    {
       fputs( "Commands:\n", stderr );
 
       // Sort
-      for( int pass = 0; pass < private-> subCommandCount - 1; pass++ )
+      for( int pass = 0; pass < impl-> subCommandCount - 1; pass++ )
       {
-         for( i = 0; i < private-> subCommandCount - 1; i++ )
+         for( i = 0; i < impl-> subCommandCount - 1; i++ )
          {
-         Command_t *a = private-> subCommands[ i ];
-         Command_t *b = private-> subCommands[ i + 1 ];
+         Command_t *a = impl-> subCommands[ i ];
+         Command_t *b = impl-> subCommands[ i + 1 ];
 
             if( strcmp( a-> getName( a ), b-> getName( b ) ) > 0 )
             {
-            Command_t *tmp = private-> subCommands[ i ];
+            Command_t *tmp = impl-> subCommands[ i ];
 
-               private-> subCommands[ i ] = b;
-               private-> subCommands[ i + 1 ] = tmp;
+               impl-> subCommands[ i ] = b;
+               impl-> subCommands[ i + 1 ] = tmp;
             }
          }
       }
 
-      for( i = 0; i < private-> subCommandCount; i++ )
+      for( i = 0; i < impl-> subCommandCount; i++ )
       {
-      Command_t *sub = private-> subCommands[ i ];
+      Command_t *sub = impl-> subCommands[ i ];
       const char *desc = sub-> getDescription( sub );
 
          fprintf( stderr, "   %-12s %s\n", sub-> getName( sub ), desc != NULL ? desc : "" );
@@ -261,18 +252,18 @@ int i, argCount, flagCount;
 
 static int addSubCommand( Command_t *self, Command_t *subCommand )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 Command_t **tmp;
 
-   if( ( tmp = realloc( private-> subCommands, sizeof( Command_t * ) * ( size_t ) ( private-> subCommandCount + 1 ) ) ) == NULL )
+   if( ( tmp = realloc( impl-> subCommands, sizeof( Command_t * ) * ( size_t ) ( impl-> subCommandCount + 1 ) ) ) == NULL )
    {
       return CLI_ERROR_MEMORY;
    }
 
-   ( ( PrivateData * )subCommand-> private )-> parent = self;
-   private-> subCommands = tmp;
-   private-> subCommands[ private-> subCommandCount ] = subCommand;
-   private-> subCommandCount++;
+   ( ( Implementation * )( subCommand ) )-> parent = self;
+   impl-> subCommands = tmp;
+   impl-> subCommands[ impl-> subCommandCount ] = subCommand;
+   impl-> subCommandCount++;
 
    return CLI_SUCCESS;
 }
@@ -280,17 +271,17 @@ Command_t **tmp;
 
 static int addArgument( const Command_t *self, Argument_t *argument )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 Argument_t **tmp;
 
-   if( ( tmp = realloc( private-> arguments, sizeof( Argument_t * ) * ( size_t ) ( private-> argumentCount + 1 ) ) ) == NULL )
+   if( ( tmp = realloc( impl-> arguments, sizeof( Argument_t * ) * ( size_t ) ( impl-> argumentCount + 1 ) ) ) == NULL )
    {
       return CLI_ERROR_MEMORY;
    }
 
-   private-> arguments = tmp;
-   private-> arguments[ private-> argumentCount ] = argument;
-   private-> argumentCount++;
+   impl-> arguments = tmp;
+   impl-> arguments[ impl-> argumentCount ] = argument;
+   impl-> argumentCount++;
 
    return CLI_SUCCESS;
 }
@@ -298,17 +289,17 @@ Argument_t **tmp;
 
 static int addFlag( const Command_t *self, Flag_t *flag )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 Flag_t **tmp;
 
-   if( ( tmp = realloc( private-> flags, sizeof( Flag_t * ) * ( size_t ) ( private-> flagCount + 1 ) ) ) == NULL )
+   if( ( tmp = realloc( impl-> flags, sizeof( Flag_t * ) * ( size_t ) ( impl-> flagCount + 1 ) ) ) == NULL )
    {
       return CLI_ERROR_MEMORY;
    }
 
-   private-> flags = tmp;
-   private-> flags[ private-> flagCount ] = flag;
-   private-> flagCount++;
+   impl-> flags = tmp;
+   impl-> flags[ impl-> flagCount ] = flag;
+   impl-> flagCount++;
 
    return CLI_SUCCESS;
 }
@@ -316,7 +307,7 @@ Flag_t **tmp;
 
 static void delete( Command_t **selfPtr )
 {
-PrivateData *private;
+Implementation *impl;
 Command_t *self;
 
    if( selfPtr == NULL || *selfPtr == NULL )
@@ -326,57 +317,55 @@ Command_t *self;
 
    self = *selfPtr;
 
-   private = self-> private;
-   if( private != NULL )
+   if( ( impl = __containerof( self, Implementation, interface ) ) != NULL )
    {
-      if( private-> subCommands != NULL )
+      if( impl-> subCommands != NULL )
       {
-         for( int i = 0; i < private-> subCommandCount; i++ )
+         for( int i = 0; i < impl-> subCommandCount; i++ )
          {
-            private-> subCommands[ i ]-> delete( &private-> subCommands[ i ] );
+            impl-> subCommands[ i ]-> delete( &impl-> subCommands[ i ] );
          }
-         free( private-> subCommands );
+         free( impl-> subCommands );
       }
 
-      if( private-> arguments != NULL )
+      if( impl-> arguments != NULL )
       {
-         for( int i = 0; i < private-> argumentCount; i++ )
+         for( int i = 0; i < impl-> argumentCount; i++ )
          {
-            private-> arguments[ i ]-> delete( &private-> arguments[ i ] );
+            impl-> arguments[ i ]-> delete( &impl-> arguments[ i ] );
          }
-         free( private-> arguments );
+         free( impl-> arguments );
       }
 
-      if( private-> flags != NULL )
+      if( impl-> flags != NULL )
       {
-         for( int i = 0; i < private-> flagCount; i++ )
+         for( int i = 0; i < impl-> flagCount; i++ )
          {
-            private-> flags[ i ]-> delete( &private-> flags[ i ] );
+            impl-> flags[ i ]-> delete( &impl-> flags[ i ] );
          }
-         free( private-> flags );
+         free( impl-> flags );
       }
 
-      free( private-> name );
-      free( private-> description );
-      free( private );
+      free( impl-> name );
+      free( impl-> description );
+      free( impl );
    }
-   free( self );
    *selfPtr = NULL;
 }
 
 
 static bool parseFlag( const Command_t *self, const char *flagStr )
 {
-const PrivateData *private;
+Implementation *impl;
 Flag_t *flag;
 
-   if( self == NULL || self-> private == NULL || flagStr == NULL || flagStr[ 0 ] != '-' )
+   if( self == NULL || flagStr == NULL || flagStr[ 0 ] != '-' )
    {
       return false;
    }
 
-   private = self-> private;
-   if( private-> flags == NULL )
+   impl = __containerof( self, Implementation, interface );
+   if( impl-> flags == NULL )
    {
       return false;
    }
@@ -384,12 +373,11 @@ Flag_t *flag;
    // Long flag: --flag
    if( flagStr[ 1 ] == '-' && flagStr[ 2 ] != '\0' )
    {
-      for( int i = 0; i < private-> flagCount; i++ )
+      for( int i = 0; i < impl-> flagCount; i++ )
       {
-         flag = private-> flags[ i ];
+         flag = impl-> flags[ i ];
          if( flag != NULL )
          {
-            // Use accessor functions instead of direct private data access
             if( flag-> getName( flag ) != NULL && strcmp( flag-> getName( flag ), flagStr + 2 ) == 0 )
             {
                if( flag-> set != NULL )
@@ -404,9 +392,9 @@ Flag_t *flag;
    // Short flag: -f
    else
    {
-      for( int i = 0; i < private-> flagCount; i++ )
+      for( int i = 0; i < impl-> flagCount; i++ )
       {
-         flag = private-> flags[ i ];
+         flag = impl-> flags[ i ];
          if( flag != NULL )
          {
             if( flag-> getShortName( flag ) == flagStr[ 1 ] )
@@ -425,14 +413,14 @@ Flag_t *flag;
 }
 
 
-static Command_t *findSubCommand( Command_t *cmd, const char *name )
+static Command_t *findSubCommand( Command_t *self, const char *name )
 {
-PrivateData *private = cmd->private;
+Implementation *impl = __containerof( self, Implementation, interface );
 int i;
 
-   for( i = 0; i < private-> subCommandCount; i++ )
+   for( i = 0; i < impl-> subCommandCount; i++ )
    {
-   Command_t *sub = private-> subCommands[ i ];
+   Command_t *sub = impl-> subCommands[ i ];
 
       if( strcmp( sub-> getName( sub ), name ) == 0 )
       {
@@ -446,7 +434,7 @@ int i;
 static int parse( Command_t *self, int argc, char *argv[] )
 {
 Command_t *current = self;
-PrivateData *private;
+Implementation *impl;
 Argument_t **arguments;
 int argCount;
 int i = 1;
@@ -508,8 +496,8 @@ int result;
    }
 
    // Unknown subcommand in a group?
-   private = current-> private;
-   if( i < argc && argv[ i ][ 0 ] != '-' && private-> handler == NULL )
+   impl = ( Implementation * ) current;
+   if( i < argc && argv[ i ][ 0 ] != '-' && impl-> handler == NULL )
    {
       fprintf( stderr, "Error: Unknown subcommand '%s'\n", argv[ i ] );
       current-> printHelp( current );
@@ -567,7 +555,7 @@ int result;
    }
 
    // Execute handler if exists
-   if( private-> handler != NULL )
+   if( impl-> handler != NULL )
    {
    CommandContext_t *ctx;
 
@@ -576,7 +564,7 @@ int result;
          fputs( "Error: Failed to create command context\n", stderr );
          return CLI_ERROR_CONTEXT_FAILED;
       }
-      result = private-> handler( ctx );
+      result = impl-> handler( ctx );
       ctx-> delete( &ctx );
       if( result != CLI_SUCCESS && strcmp( current-> getName( current ), "help" ) != 0 )
       {
@@ -593,85 +581,85 @@ int result;
 
 static Command_t **getSubCommands( const Command_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> subCommands;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> subCommands;
 }
 
 
 static int getSubCommandCount( const Command_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return 0;
    }
 
-   private = self-> private;
-   return private-> subCommandCount;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> subCommandCount;
 }
 
 
 static Argument_t **getArguments( const Command_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> arguments;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> arguments;
 }
 
 
 static int getArgumentCount( const Command_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return 0;
    }
 
-   private = self-> private;
-   return private-> argumentCount;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> argumentCount;
 }
 
 
 static Flag_t **getFlags( const Command_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return NULL;
    }
 
-   private = self-> private;
-   return private-> flags;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> flags;
 }
 
 
 static int getFlagCount( const Command_t *self )
 {
-const PrivateData *private;
+Implementation *impl;
 
-   if( self == NULL || self-> private == NULL )
+   if( self == NULL )
    {
       return 0;
    }
 
-   private = self-> private;
-   return private-> flagCount;
+   impl = __containerof( self, Implementation, interface );
+   return impl-> flagCount;
 }
 
 
@@ -699,58 +687,47 @@ Command_t **subs;
 
 Command_t * newCommand( const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
-Command_t *self;
-PrivateData *private;
+Implementation *self;
 
-   if( ( self = calloc( 1, sizeof( Command_t ) ) ) == NULL )
+   if( ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
    {
       fputs( "Error: Failed to allocate memory for Command_t.\n", stderr );
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
-   {
-      fputs( "Error: Failed to allocate memory for CommandPrivate_t.\n", stderr );
-      free( self );
-      return NULL;
-   }
-
-   if( ( private-> name = strdup( name ) ) == NULL )
+   if( ( self-> name = strdup( name ) ) == NULL )
    {
       fputs( "Error: Failed to allocate memory for command name.\n", stderr );
-      free( private );
       free( self );
       return NULL;
    }
 
-   if( description != NULL && ( private-> description = strdup( description ) ) == NULL )
+   if( description != NULL && ( self-> description = strdup( description ) ) == NULL )
    {
       fputs( "Error: Failed to allocate memory for command description.\n", stderr );
-      free( private-> name );
-      free( private );
+      free( self-> name );
       free( self );
       return NULL;
    }
 
-   private-> handler = handler;
-   self-> private = private;
-   self-> addSubCommand = addSubCommand;
-   self-> addArgument = addArgument;
-   self-> addFlag = addFlag;
-   self-> parse = parse;
-   self-> delete = delete;
-   self-> getName = getName;
-   self-> getDescription = getDescription;
-   self-> getArgumentValue = getArgumentValue;
-   self-> getArguments = getArguments;
-   self-> getArgumentCount = getArgumentCount;
-   self-> getFlags = getFlags;
-   self-> getFlagCount = getFlagCount;
-   self-> getSubCommands = getSubCommands;
-   self-> getSubCommandCount = getSubCommandCount;
-   self-> printHelp = printHelp;
-   self-> forEachSubCommand = forEachSubCommand;
+   self-> handler = handler;
+   self-> interface.addSubCommand = addSubCommand;
+   self-> interface.addArgument = addArgument;
+   self-> interface.addFlag = addFlag;
+   self-> interface.parse = parse;
+   self-> interface.delete = delete;
+   self-> interface.getName = getName;
+   self-> interface.getDescription = getDescription;
+   self-> interface.getArgumentValue = getArgumentValue;
+   self-> interface.getArguments = getArguments;
+   self-> interface.getArgumentCount = getArgumentCount;
+   self-> interface.getFlags = getFlags;
+   self-> interface.getFlagCount = getFlagCount;
+   self-> interface.getSubCommands = getSubCommands;
+   self-> interface.getSubCommandCount = getSubCommandCount;
+   self-> interface.printHelp = printHelp;
+   self-> interface.forEachSubCommand = forEachSubCommand;
 
-   return self;
+   return &self-> interface;
 }
 

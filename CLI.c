@@ -1,4 +1,3 @@
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -9,10 +8,11 @@
 #include "Flag.h"
 
 
-typedef struct privateData
+typedef struct
 {
+   CLI_t interface;
    Command_t *rootCommand;
-} PrivateData;
+} Implementation;
 
 
 static const char *findSubCmdToken = NULL;
@@ -70,7 +70,7 @@ Command_t *current;
 
 static int addCommand( const CLI_t *self, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 Command_t *cmd;
 
    if( ( cmd = newCommand( name, description, handler ) ) == NULL )
@@ -78,7 +78,7 @@ Command_t *cmd;
       return CLI_ERROR_MEMORY;
    }
 
-   if( private-> rootCommand-> addSubCommand( private-> rootCommand, cmd ) != CLI_SUCCESS )
+   if( impl-> rootCommand-> addSubCommand( impl-> rootCommand, cmd ) != CLI_SUCCESS )
    {
       cmd-> delete( &cmd );
       return CLI_ERROR_MEMORY;
@@ -90,7 +90,7 @@ Command_t *cmd;
 
 static int addSubCommand( const CLI_t *self, const char *parentPath, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 Command_t *parent, *sub;
 
    if( parentPath == NULL || *parentPath == '\0' )
@@ -99,7 +99,7 @@ Command_t *parent, *sub;
    }
    else
    {
-      if( ( parent = resolveCommandPath( private-> rootCommand, parentPath ) ) == NULL )
+      if( ( parent = resolveCommandPath( impl-> rootCommand, parentPath ) ) == NULL )
       {
          return CLI_ERROR_NOT_FOUND;
       }
@@ -122,17 +122,17 @@ Command_t *parent, *sub;
 
 static int addArgument( const CLI_t *self, const char *path, const char *name, const char *description, bool required )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 Command_t *cmd;
 Argument_t *arg;
 
    if( path != NULL && *path != '\0' )
    {
-      cmd = resolveCommandPath( private-> rootCommand, path );
+      cmd = resolveCommandPath( impl-> rootCommand, path );
    }
    else
    {
-      cmd = private-> rootCommand;
+      cmd = impl-> rootCommand;
    }
 
    if( cmd == NULL )
@@ -157,17 +157,17 @@ Argument_t *arg;
 
 static int addFlag( const CLI_t *self, const char *path, const char *name, char shortName, const char *description )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 Command_t *cmd;
 Flag_t *flag;
 
    if( path != NULL && *path != '\0' )
    {
-      cmd = resolveCommandPath( private-> rootCommand, path );
+      cmd = resolveCommandPath( impl-> rootCommand, path );
    }
    else
    {
-      cmd = private-> rootCommand;
+      cmd = impl-> rootCommand;
    }
 
    if( cmd == NULL )
@@ -192,11 +192,11 @@ Flag_t *flag;
 
 static int parse( const CLI_t *self, int argc, char *argv[] )
 {
-PrivateData *private = self-> private;
+Implementation *impl = __containerof( self, Implementation, interface );
 
-   if( private-> rootCommand != NULL && private-> rootCommand-> parse != NULL )
+   if( impl-> rootCommand != NULL && impl-> rootCommand-> parse != NULL )
    {
-      return private-> rootCommand-> parse( private-> rootCommand, argc, argv );
+      return impl-> rootCommand-> parse( impl-> rootCommand, argc, argv );
    }
 
    return CLI_ERROR_INVALID_ARGUMENT;
@@ -205,7 +205,7 @@ PrivateData *private = self-> private;
 
 static void delete( CLI_t **selfPtr )
 {
-PrivateData *private;
+Implementation *impl;
 CLI_t *self;
 
    if( selfPtr == NULL || *selfPtr == NULL )
@@ -215,43 +215,34 @@ CLI_t *self;
 
    self = *selfPtr;
 
-   if( ( private = self-> private ) != NULL )
+   if( ( impl = __containerof( self, Implementation, interface ) ) != NULL )
    {
-      if( private-> rootCommand != NULL )
+      if( impl-> rootCommand != NULL )
       {
-         private-> rootCommand-> delete( &private-> rootCommand );
+         impl-> rootCommand-> delete( &impl-> rootCommand );
       }
-      free( private );
+      free( impl );
    }
-   free( self );
    *selfPtr = NULL;
 }
 
 
 CLI_t * newCLI( const char *description )
 {
-CLI_t *self;
-PrivateData *private;
+Implementation *self;
 
-   if( ( self = calloc( 1, sizeof( CLI_t ) ) ) == NULL )
+   if( ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
    {
       return NULL;
    }
 
-   if( ( private = calloc( 1, sizeof( PrivateData ) ) ) == NULL )
-   {
-      free( self );
-      return NULL;
-   }
+   self-> interface.addCommand = addCommand;
+   self-> interface.addSubCommand = addSubCommand;
+   self-> interface.addArgument = addArgument;
+   self-> interface.addFlag = addFlag;
+   self-> interface.parse = parse;
+   self-> interface.delete = delete;
+   self-> rootCommand = newCommand( getprogname(), description, NULL );
 
-   self-> private = private;
-   self-> addCommand = addCommand;
-   self-> addSubCommand = addSubCommand;
-   self-> addArgument = addArgument;
-   self-> addFlag = addFlag;
-   self-> parse = parse;
-   self-> delete = delete;
-   private-> rootCommand = newCommand( getprogname(), description, NULL );
-
-   return self;
+   return &self-> interface;
 }
