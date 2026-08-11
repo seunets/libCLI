@@ -227,7 +227,7 @@ CLI_t *self;
 }
 
 
-CLI_t * newCLI( const char *description )
+__attribute__( ( visibility( "default" ) ) ) CLI_t * newCLI( const char *description )
 {
 Implementation *self;
 
