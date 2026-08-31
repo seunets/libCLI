@@ -23,7 +23,7 @@ typedef struct Command
    struct Command ** ( *getSubCommands )( const struct Command * );
    int ( *getSubCommandCount )( const struct Command * );
    void ( *printHelp )( const struct Command * );
-   void ( *forEachSubCommand )( const struct Command *, bool( * )( struct Command * ) );
+   void ( *forEachSubCommand )( const struct Command *, bool ( * )( struct Command *, void * ), void * );
 } Command_t;
 
 Command_t * newCommand( const char *, const char *, int ( * )( const CommandContext_t * ) );

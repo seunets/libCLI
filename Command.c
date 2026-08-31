@@ -663,7 +663,7 @@ Implementation *impl;
 }
 
 
-static void forEachSubCommand( const Command_t *self, bool ( *cb )( Command_t * ) )
+static void forEachSubCommand( const Command_t *self, bool ( *cb )( Command_t *, void * ), void *context )
 {
 int count;
 Command_t **subs;
@@ -677,7 +677,7 @@ Command_t **subs;
    subs = self-> getSubCommands( self );
    for( int i = 0; i < count; i++ )
    {
-      if( !cb( subs[ i ] ) )
+      if( !cb( subs[ i ], context ) )
       {
          break;
       }

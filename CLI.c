@@ -15,15 +15,20 @@ typedef struct
 } Implementation;
 
 
-static const char *findSubCmdToken = NULL;
-static Command_t *findSubCmdFound = NULL;
-
-
-static bool findSubCmd( Command_t *sub )
+typedef struct
 {
-   if( strcmp( sub-> getName( sub ), findSubCmdToken ) == 0 )
+   const char *token;
+   Command_t *found;
+} SearchContext_t;
+
+
+static bool findSubCmd( Command_t *sub, void *context )
+{
+SearchContext_t *ctx = ( SearchContext_t * ) context;
+
+   if( strcmp( sub-> getName( sub ), ctx-> token ) == 0 )
    {
-      findSubCmdFound = sub;
+      ctx-> found = sub;
       return false;
    }
 
@@ -36,6 +41,7 @@ static Command_t * resolveCommandPath( Command_t *root, const char *path )
 char *pathCopy;
 const char *token;
 Command_t *current;
+SearchContext_t searchCtx;
 
    if( root == NULL || path == NULL || *path == '\0' )
    {
@@ -51,10 +57,10 @@ Command_t *current;
    current = root;
    while( token != NULL && current != NULL )
    {
-      findSubCmdToken = token;
-      findSubCmdFound = NULL;
-      current-> forEachSubCommand( current, findSubCmd );
-      current = findSubCmdFound;
+      searchCtx.token = token;
+      searchCtx.found = NULL;
+      current-> forEachSubCommand( current, findSubCmd, &searchCtx );
+      current = searchCtx.found;
       if( current == NULL )
       {
          free( pathCopy );
