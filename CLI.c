@@ -40,6 +40,7 @@ static Command_t * resolveCommandPath( Command_t *root, const char *path )
 {
 char *pathCopy;
 const char *token;
+char *savePtr;
 Command_t *current;
 SearchContext_t searchCtx;
 
@@ -53,7 +54,7 @@ SearchContext_t searchCtx;
       return NULL;
    }
 
-   token = strtok( pathCopy, " " );
+   token = strtok_r( pathCopy, " ", &savePtr );
    current = root;
    while( token != NULL && current != NULL )
    {
@@ -66,7 +67,7 @@ SearchContext_t searchCtx;
          free( pathCopy );
          return NULL;
       }
-      token = strtok( NULL, " " );
+      token = strtok_r( NULL, " ", &savePtr );
    }
    free( pathCopy );
 
@@ -76,14 +77,20 @@ SearchContext_t searchCtx;
 
 static int addCommand( const CLI_t *self, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 Command_t *cmd;
+
+   if( self == NULL || name == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
 
    if( ( cmd = newCommand( name, description, handler ) ) == NULL )
    {
       return CLI_ERROR_MEMORY;
    }
 
+   impl = __containerof( self, Implementation, interface );
    if( impl-> rootCommand-> addSubCommand( impl-> rootCommand, cmd ) != CLI_SUCCESS )
    {
       cmd-> delete( &cmd );
@@ -96,15 +103,16 @@ Command_t *cmd;
 
 static int addSubCommand( const CLI_t *self, const char *parentPath, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
 Command_t *parent, *sub;
 
-   if( parentPath == NULL || *parentPath == '\0' )
+   if( self == NULL || parentPath == NULL || *parentPath == '\0' || name == NULL || description == NULL || handler == NULL )
    {
       return CLI_ERROR_INVALID_ARGUMENT;
    }
    else
    {
+   Implementation *impl = __containerof( self, Implementation, interface );
+
       if( ( parent = resolveCommandPath( impl-> rootCommand, parentPath ) ) == NULL )
       {
          return CLI_ERROR_NOT_FOUND;
@@ -128,10 +136,16 @@ Command_t *parent, *sub;
 
 static int addArgument( const CLI_t *self, const char *path, const char *name, const char *description, bool required )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 Command_t *cmd;
 Argument_t *arg;
 
+   if( self == NULL || name == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
+   impl = __containerof( self, Implementation, interface );
    if( path != NULL && *path != '\0' )
    {
       cmd = resolveCommandPath( impl-> rootCommand, path );
@@ -167,6 +181,12 @@ Implementation *impl = __containerof( self, Implementation, interface );
 Command_t *cmd;
 Flag_t *flag;
 
+   if( self == NULL || path == NULL || name == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
+   impl = __containerof( self, Implementation, interface );
    if( path != NULL && *path != '\0' )
    {
       cmd = resolveCommandPath( impl-> rootCommand, path );
@@ -198,8 +218,14 @@ Flag_t *flag;
 
 static int parse( const CLI_t *self, int argc, char *argv[] )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 
+   if( self == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
+   impl = __containerof( self, Implementation, interface );
    if( impl-> rootCommand != NULL && impl-> rootCommand-> parse != NULL )
    {
       return impl-> rootCommand-> parse( impl-> rootCommand, argc, argv );

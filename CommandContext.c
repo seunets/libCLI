@@ -22,7 +22,7 @@ static const char * getArgument( const CommandContext_t *self, const char *name 
 {
 Implementation *impl;
 
-   if( self == NULL )
+   if( self == NULL || name == NULL )
    {
       return NULL;
    }
@@ -44,7 +44,7 @@ static bool getFlag( const CommandContext_t *self, const char *name )
 {
 Implementation *impl;
 
-   if( self == NULL )
+   if( self == NULL || name == NULL )
    {
       return false;
    }

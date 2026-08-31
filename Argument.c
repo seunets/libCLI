@@ -119,7 +119,7 @@ Argument_t * newArgument( const char *name, const char *description, bool requir
 {
 Implementation *self;
 
-   if( ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
+   if( name == NULL || ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
    {
       return NULL;
    }

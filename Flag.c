@@ -72,8 +72,14 @@ Implementation *impl;
 
 static void set( const Flag_t *self )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 
+   if( self == NULL )
+   {
+      return;
+   }
+
+   impl = __containerof( self, Implementation, interface );
    impl-> isSet = true;
 }
 
@@ -99,7 +105,7 @@ Flag_t * newFlag( const char *name, char shortName, const char *description )
 {
 Implementation *self;
 
-   if( ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
+   if( name == NULL || ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
    {
       return NULL;
    }

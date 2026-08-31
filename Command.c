@@ -55,11 +55,14 @@ Implementation *impl;
 
 static int findArgumentByName( Argument_t **arguments, int count, const char *name )
 {
-   for( int i = 0; i < count; i++ )
+   if( name != NULL )
    {
-      if( arguments[ i ] && arguments[ i ]-> getName( arguments[ i ] ) && strcmp( arguments[ i ]-> getName( arguments[ i ] ), name ) == 0 )
+      for( int i = 0; i < count; i++ )
       {
-         return i;
+         if( arguments[ i ] && arguments[ i ]-> getName( arguments[ i ] ) && strcmp( arguments[ i ]-> getName( arguments[ i ] ), name ) == 0 )
+         {
+            return i;
+         }
       }
    }
 
@@ -105,11 +108,17 @@ Argument_t *arg = getCommandArgument( cmd, name );
 
 static char * buildCommandPath( const Command_t *self )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 size_t len;
 char *buf;
 char *parentPath;
 
+   if( self == NULL )
+   {
+      return NULL;
+   }
+
+   impl = __containerof( self, Implementation, interface );
    if( impl-> parent == NULL )
    {
    char *result;
@@ -145,23 +154,24 @@ char *parentPath;
 
 static void printHelp( const Command_t *self )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
-char *fullPath = buildCommandPath( self );
+Implementation *impl;
+char *fullPath;
 Argument_t **args;
 Flag_t **flags;
 int i, argCount, flagCount;
 
    if( self == NULL )
    {
-      free( fullPath );
       return;
    }
 
+   impl = __containerof( self, Implementation, interface );
    if( impl-> description != NULL )
    {
       fprintf( stderr, "%s\n\n", impl-> description );
    }
 
+   fullPath = buildCommandPath( self );
    fprintf( stderr, "Usage: %s", fullPath );
 
    args = self-> getArguments( self );
@@ -250,11 +260,46 @@ int i, argCount, flagCount;
 }
 
 
+static Command_t *findSubCommand( Command_t *self, const char *name )
+{
+Implementation *impl;
+int i;
+
+   if( self == NULL || name == NULL )
+   {
+      return NULL;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+   for( i = 0; i < impl-> subCommandCount; i++ )
+   {
+   Command_t *sub = impl-> subCommands[ i ];
+
+      if( strcmp( sub-> getName( sub ), name ) == 0 )
+      {
+         return sub;
+      }
+   }
+   return NULL;
+}
+
+
 static int addSubCommand( Command_t *self, Command_t *subCommand )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 Command_t **tmp;
 
+   if( self == NULL || subCommand == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
+   if( findSubCommand( self, subCommand-> getName( subCommand ) ) != NULL )
+   {
+      return CLI_ERROR_ALREADY_EXISTS;
+   }
+
+   impl = __containerof( self, Implementation, interface );
    if( ( tmp = realloc( impl-> subCommands, sizeof( Command_t * ) * ( size_t ) ( impl-> subCommandCount + 1 ) ) ) == NULL )
    {
       return CLI_ERROR_MEMORY;
@@ -271,8 +316,19 @@ Command_t **tmp;
 
 static int addArgument( const Command_t *self, Argument_t *argument )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 Argument_t **tmp;
+
+   if( self == NULL || argument == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+   if( findArgumentByName( impl-> arguments, impl-> argumentCount, argument-> getName( argument ) ) >= 0 )
+   {
+      return CLI_ERROR_ALREADY_EXISTS;
+   }
 
    if( ( tmp = realloc( impl-> arguments, sizeof( Argument_t * ) * ( size_t ) ( impl-> argumentCount + 1 ) ) ) == NULL )
    {
@@ -289,8 +345,25 @@ Argument_t **tmp;
 
 static int addFlag( const Command_t *self, Flag_t *flag )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 Flag_t **tmp;
+
+   if( self == NULL || flag == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+   for( int i = 0; i < impl-> flagCount; i++ )
+   {
+   Flag_t *existing = impl-> flags[ i ];
+
+      if( strcmp( existing-> getName( existing ), flag-> getName( flag ) ) == 0 || 
+          ( flag-> getShortName( flag ) != '\0' && existing-> getShortName( existing ) == flag-> getShortName( flag ) ) )
+      {
+         return CLI_ERROR_ALREADY_EXISTS;
+      }
+   }
 
    if( ( tmp = realloc( impl-> flags, sizeof( Flag_t * ) * ( size_t ) ( impl-> flagCount + 1 ) ) ) == NULL )
    {
@@ -413,24 +486,6 @@ Flag_t *flag;
 }
 
 
-static Command_t *findSubCommand( Command_t *self, const char *name )
-{
-Implementation *impl = __containerof( self, Implementation, interface );
-int i;
-
-   for( i = 0; i < impl-> subCommandCount; i++ )
-   {
-   Command_t *sub = impl-> subCommands[ i ];
-
-      if( strcmp( sub-> getName( sub ), name ) == 0 )
-      {
-         return sub;
-      }
-   }
-   return NULL;
-}
-
-
 static int parse( Command_t *self, int argc, char *argv[] )
 {
 Command_t *current = self;
@@ -442,14 +497,15 @@ int pos = 0;
 int j;
 int result;
 
+   if( self == NULL || argv == NULL || argc < 0 )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
    if( argc == 1 )
    {
       self-> printHelp( self );
       return CLI_SUCCESS;
-   }
-   if( self == NULL || argv == NULL || argc < 0 )
-   {
-      return CLI_ERROR_INVALID_ARGUMENT;
    }
 
    // Early help detection anywhere in the command chain
@@ -510,7 +566,7 @@ int result;
    // Parse flags + positional arguments
    for( ; i < argc; i++ )
    {
-      if( argv[ i ][ 0 ] == '-' )
+      if( argv[ i ][ 0 ] == '-' && argv[ i ][ 1 ] != '\0' )
       {
          if( !parseFlag( current, argv[ i ] ) )
          {
@@ -689,7 +745,7 @@ Command_t * newCommand( const char *name, const char *description, int ( *handle
 {
 Implementation *self;
 
-   if( ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
+   if( name == NULL || ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
    {
       fputs( "Error: Failed to allocate memory for Command_t.\n", stderr );
       return NULL;
@@ -730,4 +786,3 @@ Implementation *self;
 
    return &self-> interface;
 }
-
