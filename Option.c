@@ -2,21 +2,22 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include "Argument.h"
+#include "Option.h"
 
 
 typedef struct
 {
-   Argument_t interface;
+   Option_t interface;
    char *name;
    char *description;
+   char shortName;
    char *value;
-   bool required;
    bool isSet;
+   bool required;
 } Implementation;
 
 
-static const char * getName( const Argument_t *self )
+static const char * getName( const Option_t *self )
 {
 Implementation *impl;
 
@@ -30,7 +31,7 @@ Implementation *impl;
 }
 
 
-static const char * getDescription( const Argument_t *self )
+static const char * getDescription( const Option_t *self )
 {
 Implementation *impl;
 
@@ -44,35 +45,21 @@ Implementation *impl;
 }
 
 
-static const char * getValue( const Argument_t *self )
+static char getShortName( const Option_t *self )
 {
 Implementation *impl;
 
    if( self == NULL )
    {
-      return NULL;
+      return '\0';
    }
 
    impl = __containerof( self, Implementation, interface );
-   return impl-> value;
+   return impl-> shortName;
 }
 
 
-static bool isRequired( const Argument_t *self )
-{
-Implementation *impl;
-
-   if( self == NULL )
-   {
-      return false;
-   }
-
-   impl = __containerof( self, Implementation, interface );
-   return impl-> required;
-}
-
-
-static bool isSet( const Argument_t *self )
+static bool isSet( const Option_t *self )
 {
 Implementation *impl;
 
@@ -86,7 +73,35 @@ Implementation *impl;
 }
 
 
-static void setValue( const Argument_t *self, const char *value )
+static bool isRequired( const Option_t *self )
+{
+Implementation *impl;
+
+   if( self == NULL )
+   {
+      return false;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+   return impl-> required;
+}
+
+
+static const char * getValue( const Option_t *self )
+{
+Implementation *impl;
+
+   if( self == NULL )
+   {
+      return NULL;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+   return impl-> value;
+}
+
+
+static void setValue( const Option_t *self, const char *value )
 {
 Implementation *impl;
 
@@ -97,7 +112,7 @@ Implementation *impl;
 
    impl = __containerof( self, Implementation, interface );
 
-   free( impl-> value);
+   free( impl-> value );
    if( value != NULL )
    {
       impl-> value = strdup( value );
@@ -115,7 +130,7 @@ Implementation *impl;
 }
 
 
-static void delete( Argument_t **selfPtr )
+static void delete( Option_t **selfPtr )
 {
 Implementation *impl;
 
@@ -132,7 +147,8 @@ Implementation *impl;
    *selfPtr = NULL;
 }
 
-Argument_t * newArgument( const char *name, const char *description, bool required )
+
+Option_t * newOption( const char *name, char shortName, const char *description, bool required )
 {
 Implementation *self;
 
@@ -157,13 +173,15 @@ Implementation *self;
       }
    }
 
+   self-> shortName = shortName;
    self-> required = required;
 
    self-> interface.getName = getName;
    self-> interface.getDescription = getDescription;
-   self-> interface.getValue = getValue;
-   self-> interface.isRequired = isRequired;
+   self-> interface.getShortName = getShortName;
    self-> interface.isSet = isSet;
+   self-> interface.isRequired = isRequired;
+   self-> interface.getValue = getValue;
    self-> interface.setValue = setValue;
    self-> interface.delete = delete;
 

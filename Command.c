@@ -6,6 +6,7 @@
 #include "CommandContext.h"
 #include "Argument.h"
 #include "Flag.h"
+#include "Option.h"
 #include "CLI.h"
 
 
@@ -17,11 +18,13 @@ typedef struct
    struct Command **subCommands;
    Argument_t **arguments;
    Flag_t **flags;
+   Option_t **options;
    struct Command *parent;
    int ( *handler )( const CommandContext_t * );
    int subCommandCount;
    int argumentCount;
    int flagCount;
+   int optionCount;
 } Implementation;
 
 
@@ -53,16 +56,46 @@ Implementation *impl;
 }
 
 
+static struct Command * getParent( const Command_t *self )
+{
+Implementation *impl;
+
+   if( self == NULL )
+   {
+      return NULL;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+   return impl-> parent;
+}
+
+
+static void setParent( Command_t *self, Command_t *parent )
+{
+Implementation *impl;
+
+   if( self == NULL )
+   {
+      return;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+   impl-> parent = parent;
+}
+
+
 static int findArgumentByName( Argument_t **arguments, int count, const char *name )
 {
-   if( name != NULL )
+   if( name == NULL )
    {
-      for( int i = 0; i < count; i++ )
+      return -1;
+   }
+
+   for( int i = 0; i < count; i++ )
+   {
+      if( arguments[ i ] != NULL && arguments[ i ]-> getName( arguments[ i ] ) != NULL && strcmp( arguments[ i ]-> getName( arguments[ i ] ), name ) == 0 )
       {
-         if( arguments[ i ] && arguments[ i ]-> getName( arguments[ i ] ) && strcmp( arguments[ i ]-> getName( arguments[ i ] ), name ) == 0 )
-         {
-            return i;
-         }
+         return i;
       }
    }
 
@@ -73,8 +106,7 @@ static int findArgumentByName( Argument_t **arguments, int count, const char *na
 static Argument_t * getCommandArgument( const Command_t *self, const char *name )
 {
 Argument_t **arguments;
-int count;
-int i;
+int count, i;
 
    if( self == NULL )
    {
@@ -83,7 +115,6 @@ int i;
 
    arguments = self-> getArguments( self );
    count = self-> getArgumentCount( self );
-
    if( arguments != NULL && ( i = findArgumentByName( arguments, count, name ) ) >= 0 )
    {
       return arguments[ i ];
@@ -97,19 +128,13 @@ static const char * getArgumentValue( const Command_t *cmd, const char *name )
 {
 Argument_t *arg = getCommandArgument( cmd, name );
 
-   if( arg != NULL )
-   {
-      return arg-> getValue( arg );
-   }
-
-   return NULL;
+   return( arg != NULL ) ? arg-> getValue( arg ) : NULL;
 }
 
 
 static char * buildCommandPath( const Command_t *self )
 {
 Implementation *impl;
-size_t len;
 char *buf;
 char *parentPath;
 
@@ -121,46 +146,36 @@ char *parentPath;
    impl = __containerof( self, Implementation, interface );
    if( impl-> parent == NULL )
    {
-   char *result;
-
-      if( ( result = strdup( impl-> name ) ) == NULL )
-      {
-         return NULL;
-      }
-
-      return result;
+      return strdup( impl-> name );
    }
-   else
+
+   parentPath = buildCommandPath( impl-> parent );
+   if( parentPath == NULL )
    {
-      if( ( parentPath = buildCommandPath( impl-> parent ) ) == NULL )
-      {
-         return NULL;
-      }
-
-      len = strlen( parentPath ) + strlen( impl-> name ) + 2;
-      if( ( buf = calloc( 1, len ) ) == NULL )
-      {
-         free( parentPath );
-         return NULL;
-      }
-
-      snprintf( buf, len, "%s %s", parentPath, impl-> name );
-      free( parentPath );
-
-      return buf;
+      return NULL;
    }
+
+   if( asprintf( &buf, "%s %s", parentPath, impl-> name ) == -1 )
+   {
+      free( parentPath );
+      return NULL;
+   }
+
+   free( parentPath );
+   return buf;
 }
 
 
-static void printHelp( const Command_t *self )
+static void printHelp( const Command_t *self, FILE *stream )
 {
 Implementation *impl;
 char *fullPath;
 Argument_t **args;
 Flag_t **flags;
-int i, argCount, flagCount;
+Option_t **options;
+int i, argCount, flagCount, optionCount;
 
-   if( self == NULL )
+   if( self == NULL || stream == NULL )
    {
       return;
    }
@@ -168,49 +183,49 @@ int i, argCount, flagCount;
    impl = __containerof( self, Implementation, interface );
    if( impl-> description != NULL )
    {
-      fprintf( stderr, "%s\n\n", impl-> description );
+      fprintf( stream, "%s\n\n", impl-> description );
    }
 
    fullPath = buildCommandPath( self );
-   fprintf( stderr, "Usage: %s", fullPath );
+   fprintf( stream, "Usage: %s", fullPath ? fullPath : ( impl-> name ? impl-> name : "" ) );
 
    args = self-> getArguments( self );
    argCount = self-> getArgumentCount( self );
 
-   // Positional arguments
    for( i = 0; i < argCount; i++ )
    {
       if( args[ i ]-> isRequired( args[ i ] ) )
       {
-         fprintf( stderr, " <%s>", args[ i ]-> getName( args[ i ] ) );
+         fprintf( stream, " <%s>", args[ i ]-> getName( args[ i ] ) );
       }
       else
       {
-         fprintf( stderr, " [%s]", args[ i ]-> getName( args[ i ] ) );
+         fprintf( stream, " [%s]", args[ i ]-> getName( args[ i ] ) );
       }
    }
 
    flags = self-> getFlags( self );
    flagCount = self-> getFlagCount( self );
+   options = self-> getOptions( self );
+   optionCount = self-> getOptionCount( self );
 
-   if( flagCount > 0 )
+   if( flagCount > 0 || optionCount > 0 )
    {
-      fprintf( stderr, " [OPTIONS]" );
+      fputs( " [OPTIONS]\n", stream );
    }
 
    if( impl-> subCommandCount > 0 )
    {
-      fprintf( stderr, " COMMAND" );
+      fputs( " COMMAND\n", stream );
    }
 
-   fputs( "\n\n", stderr );
+   fputs( "", stream );
 
-   // Subcommands section
+   // Subcommands
    if( impl-> subCommandCount > 0 )
    {
-      fputs( "Commands:\n", stderr );
+      fputs( "Commands:\n", stream );
 
-      // Sort
       for( int pass = 0; pass < impl-> subCommandCount - 1; pass++ )
       {
          for( i = 0; i < impl-> subCommandCount - 1; i++ )
@@ -233,15 +248,16 @@ int i, argCount, flagCount;
       Command_t *sub = impl-> subCommands[ i ];
       const char *desc = sub-> getDescription( sub );
 
-         fprintf( stderr, "   %-12s %s\n", sub-> getName( sub ), desc != NULL ? desc : "" );
+         fprintf( stream, "   %-12s %s\n", sub-> getName( sub ), desc ? desc : "" );
       }
-      fprintf( stderr, "\nRun '%s COMMAND --help' for more information on a command.\n\n", fullPath );
+      fprintf( stream, "\nRun '%s COMMAND --help' for more information on a command.\n\n", fullPath ? fullPath : "" );
    }
 
-   // Flags section
-   if( flagCount > 0 )
+   // Options + Flags
+   if( flagCount > 0 || optionCount > 0 )
    {
-      fputs( "Options:\n", stderr );
+      fputs( "Options:\n", stream );
+
       for( i = 0; i < flagCount; i++ )
       {
       Flag_t *f = flags[ i ];
@@ -251,19 +267,30 @@ int i, argCount, flagCount;
          {
             snprintf( shortBuf, sizeof( shortBuf ), "-%c, ", f-> getShortName( f ) );
          }
-
-         fprintf( stderr, "   %s--%-18s %s\n", f-> getShortName( f ) ? shortBuf : "    ", f-> getName( f ), f-> getDescription( f ) ? f-> getDescription( f ) : "" );
+         fprintf( stream, "   %s--%-18s %s\n", f-> getShortName( f ) ? shortBuf : "    ", f-> getName( f ), f-> getDescription( f ) ? f-> getDescription( f ) : "" );
       }
+
+      for( i = 0; i < optionCount; i++ )
+      {
+      Option_t *o = options[ i ];
+      char shortBuf[ 8 ] = { 0 };
+
+         if( o-> getShortName( o ) )
+         {
+            snprintf( shortBuf, sizeof( shortBuf ), "-%c, ", o-> getShortName( o ) );
+         }
+         fprintf( stream, "   %s--%-18s <value> %s%s\n", o-> getShortName( o ) ? shortBuf : "    ", o-> getName( o ), o-> getDescription( o ) ? o-> getDescription( o ) : "", o-> isRequired( o ) ? " (required)" : "" );
+      }
+      fputs( "", stream );
    }
 
    free( fullPath );
 }
 
 
-static Command_t *findSubCommand( Command_t *self, const char *name )
+static Command_t * findSubCommand( Command_t *self, const char *name )
 {
 Implementation *impl;
-int i;
 
    if( self == NULL || name == NULL )
    {
@@ -271,7 +298,7 @@ int i;
    }
 
    impl = __containerof( self, Implementation, interface );
-   for( i = 0; i < impl-> subCommandCount; i++ )
+   for( int i = 0; i < impl-> subCommandCount; i++ )
    {
    Command_t *sub = impl-> subCommands[ i ];
 
@@ -280,6 +307,7 @@ int i;
          return sub;
       }
    }
+
    return NULL;
 }
 
@@ -300,15 +328,19 @@ Command_t **tmp;
    }
 
    impl = __containerof( self, Implementation, interface );
-   if( ( tmp = realloc( impl-> subCommands, sizeof( Command_t * ) * ( size_t ) ( impl-> subCommandCount + 1 ) ) ) == NULL )
+   tmp = realloc( impl-> subCommands, sizeof( Command_t * ) * ( size_t )( impl-> subCommandCount + 1 ) );
+   if( tmp == NULL )
    {
       return CLI_ERROR_MEMORY;
    }
 
-   ( ( Implementation * )( subCommand ) )-> parent = self;
+   if( subCommand-> setParent )
+   {
+      subCommand-> setParent( subCommand, self );
+   }
+
    impl-> subCommands = tmp;
-   impl-> subCommands[ impl-> subCommandCount ] = subCommand;
-   impl-> subCommandCount++;
+   impl-> subCommands[ impl-> subCommandCount++ ] = subCommand;
 
    return CLI_SUCCESS;
 }
@@ -330,14 +362,14 @@ Argument_t **tmp;
       return CLI_ERROR_ALREADY_EXISTS;
    }
 
-   if( ( tmp = realloc( impl-> arguments, sizeof( Argument_t * ) * ( size_t ) ( impl-> argumentCount + 1 ) ) ) == NULL )
+   tmp = realloc( impl-> arguments, sizeof( Argument_t * ) * ( size_t )( impl-> argumentCount + 1 ) );
+   if( tmp == NULL )
    {
       return CLI_ERROR_MEMORY;
    }
 
    impl-> arguments = tmp;
-   impl-> arguments[ impl-> argumentCount ] = argument;
-   impl-> argumentCount++;
+   impl-> arguments[ impl-> argumentCount++ ] = argument;
 
    return CLI_SUCCESS;
 }
@@ -358,22 +390,64 @@ Flag_t **tmp;
    {
    Flag_t *existing = impl-> flags[ i ];
 
-      if( strcmp( existing-> getName( existing ), flag-> getName( flag ) ) == 0 || 
-          ( flag-> getShortName( flag ) != '\0' && existing-> getShortName( existing ) == flag-> getShortName( flag ) ) )
+      if( strcmp( existing-> getName( existing ), flag-> getName( flag ) ) == 0 || ( flag-> getShortName( flag ) != '\0' && existing-> getShortName( existing ) == flag-> getShortName( flag ) ) )
       {
          return CLI_ERROR_ALREADY_EXISTS;
       }
    }
 
-   if( ( tmp = realloc( impl-> flags, sizeof( Flag_t * ) * ( size_t ) ( impl-> flagCount + 1 ) ) ) == NULL )
+   tmp = realloc( impl-> flags, sizeof( Flag_t * ) * ( size_t )( impl-> flagCount + 1 ) );
+   if( tmp == NULL )
    {
       return CLI_ERROR_MEMORY;
    }
 
    impl-> flags = tmp;
-   impl-> flags[ impl-> flagCount ] = flag;
-   impl-> flagCount++;
+   impl-> flags[ impl-> flagCount++ ] = flag;
+   return CLI_SUCCESS;
+}
 
+
+static int addOption( const Command_t *self, Option_t *option )
+{
+Implementation *impl;
+Option_t **tmp;
+
+   if( self == NULL || option == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+
+   for( int i = 0; i < impl-> optionCount; i++ )
+   {
+   Option_t *existing = impl-> options[ i ];
+
+      if( strcmp( existing-> getName( existing ), option-> getName( option ) ) == 0 || ( option-> getShortName( option ) != '\0' && existing-> getShortName( existing ) == option-> getShortName( option ) ) )
+      {
+         return CLI_ERROR_ALREADY_EXISTS;
+      }
+   }
+
+   for( int i = 0; i < impl-> flagCount; i++ )
+   {
+   Flag_t *f = impl-> flags[ i ];
+ 
+      if( strcmp( f-> getName( f ), option-> getName( option ) ) == 0 || ( option-> getShortName( option ) != '\0' && f-> getShortName( f ) == option-> getShortName( option ) ) )
+      {
+         return CLI_ERROR_ALREADY_EXISTS;
+      }
+   }
+
+   tmp = realloc( impl-> options, sizeof( Option_t * ) * ( size_t )( impl-> optionCount + 1 ) );
+   if( tmp == NULL )
+   {
+      return CLI_ERROR_MEMORY;
+   }
+
+   impl-> options = tmp;
+   impl-> options[ impl-> optionCount++ ] = option;
    return CLI_SUCCESS;
 }
 
@@ -389,100 +463,245 @@ Command_t *self;
    }
 
    self = *selfPtr;
-
-   if( ( impl = __containerof( self, Implementation, interface ) ) != NULL )
+   impl = __containerof( self, Implementation, interface );
+   if( impl-> subCommands )
    {
-      if( impl-> subCommands != NULL )
+      for( int i = 0; i < impl-> subCommandCount; i++ )
       {
-         for( int i = 0; i < impl-> subCommandCount; i++ )
-         {
-            impl-> subCommands[ i ]-> delete( &impl-> subCommands[ i ] );
-         }
-         free( impl-> subCommands );
+         impl-> subCommands[ i ]-> delete( &impl-> subCommands[ i ] );
       }
-
-      if( impl-> arguments != NULL )
-      {
-         for( int i = 0; i < impl-> argumentCount; i++ )
-         {
-            impl-> arguments[ i ]-> delete( &impl-> arguments[ i ] );
-         }
-         free( impl-> arguments );
-      }
-
-      if( impl-> flags != NULL )
-      {
-         for( int i = 0; i < impl-> flagCount; i++ )
-         {
-            impl-> flags[ i ]-> delete( &impl-> flags[ i ] );
-         }
-         free( impl-> flags );
-      }
-
-      free( impl-> name );
-      free( impl-> description );
-      free( impl );
+      free( impl-> subCommands );
    }
+
+   if( impl-> arguments )
+   {
+      for( int i = 0; i < impl-> argumentCount; i++ )
+      {
+         impl-> arguments[ i ]-> delete( &impl-> arguments[ i ] );
+      }
+      free( impl-> arguments );
+   }
+
+   if( impl->flags )
+   {
+      for( int i = 0; i < impl-> flagCount; i++ )
+      {
+         impl-> flags[ i ]-> delete( &impl-> flags[ i ] );
+      }
+      free( impl-> flags );
+   }
+
+   if( impl-> options )
+   {
+      for( int i = 0; i < impl-> optionCount; i++ )
+      {
+        impl-> options[ i ]-> delete( &impl-> options[ i ] );
+      }
+      free( impl-> options );
+   }
+
+   free( impl-> name );
+   free( impl-> description );
+   free( impl );
    *selfPtr = NULL;
 }
 
 
-static bool parseFlag( const Command_t *self, const char *flagStr )
+static bool parseFlagOrOption( const Command_t *self, const char *token, const char *next, int *consumedExtra )
 {
 Implementation *impl;
-Flag_t *flag;
+bool isLong;
+char *eq;
+char nameBuf[128];
+const char *valueFromEq;
+const char *p;
+const char *nameToMatch;
+const char *val;
+size_t len;
+int i;
+Flag_t *f;
+Option_t *o;
+char ch;
+bool found;
 
-   if( self == NULL || flagStr == NULL || flagStr[ 0 ] != '-' )
+   if( consumedExtra != NULL )
+   {
+      *consumedExtra = 0;
+   }
+
+   if( self == NULL || token == NULL || token[ 0 ] != '-' || token[ 1 ] == '\0' )
    {
       return false;
    }
 
-   impl = __containerof( self, Implementation, interface );
-   if( impl-> flags == NULL )
+   impl = __containerof(self, Implementation, interface);
+   isLong = ( token[ 1 ] == '-' && token[ 2 ] != '\0' );
+   eq = NULL;
+   valueFromEq = NULL;
+
+   if( isLong )
    {
+      eq = strchr( token + 2, '=' );
+      if( eq != NULL )
+      {
+         len = ( size_t )( eq - ( token + 2 ) );
+         if( len == 0 || len >= sizeof( nameBuf ) )
+         {
+            return false;
+         }
+         memcpy( nameBuf, token + 2, len );
+         nameBuf[ len ] = '\0';
+         valueFromEq = eq + 1;
+      }
+
+      for( i = 0; i < impl-> flagCount; i++ )
+      {
+         f = impl-> flags[ i ];
+         if( f == NULL )
+         {
+            continue;
+         }
+
+         nameToMatch = ( eq != NULL ) ? nameBuf : ( token + 2 );
+         if( f-> getName( f ) != NULL && strcmp( nameToMatch, f-> getName( f ) ) == 0 )
+         {
+            if( eq != NULL )
+            {
+               return false;
+            }
+
+            if( f-> set )
+            {
+               f-> set(f);
+            }
+            return true;
+         }
+      }
+
+      for( i = 0; i < impl-> optionCount; i++ )
+      {
+         o = impl-> options[ i ];
+         if( o == NULL )
+         {
+            continue;
+         }
+
+         nameToMatch = ( eq != NULL ) ? nameBuf : ( token + 2 );
+         if( o-> getName( o ) != NULL && strcmp( nameToMatch, o-> getName( o ) ) == 0 )
+         {
+            val = NULL;
+
+            if( eq != NULL )
+            {
+               val = valueFromEq;
+            }
+            else
+            {
+               if( next != NULL )
+               {
+                  val = next;
+                  if( consumedExtra != NULL )
+                  {
+                     *consumedExtra = 1;
+                  }
+               }
+               else
+               {
+                  return false;
+               }
+            }
+
+            if( o-> setValue != NULL )
+            {
+               o-> setValue( o, val );
+            }
+            return true;
+         }
+      }
+
       return false;
    }
 
-   // Long flag: --flag
-   if( flagStr[ 1 ] == '-' && flagStr[ 2 ] != '\0' )
+   p = token + 1;
+
+   while( *p != '\0' )
    {
-      for( int i = 0; i < impl-> flagCount; i++ )
+      ch = *p;
+      found = false;
+
+      for( i = 0; i < impl-> flagCount; i++ )
       {
-         flag = impl-> flags[ i ];
-         if( flag != NULL )
+         f = impl-> flags[ i ];
+         if( f == NULL )
          {
-            if( flag-> getName( flag ) != NULL && strcmp( flag-> getName( flag ), flagStr + 2 ) == 0 )
+            continue;
+         }
+
+         if( f-> getShortName( f ) == ch )
+         {
+            if( f-> set != NULL )
             {
-               if( flag-> set != NULL )
-               {
-                  flag-> set( flag );
-               }
-               return true;
+               f-> set( f );
             }
+            found = true;
+            p++;
+            break;
          }
       }
-   }
-   // Short flag: -f
-   else
-   {
-      for( int i = 0; i < impl-> flagCount; i++ )
+      if( found )
       {
-         flag = impl-> flags[ i ];
-         if( flag != NULL )
+         continue;
+      }
+
+      for( i = 0; i < impl-> optionCount; i++ )
+      {
+         o = impl-> options[ i ];
+         if( o == NULL )
          {
-            if( flag-> getShortName( flag ) == flagStr[ 1 ] )
-            {
-               if( flag-> set != NULL )
-               {
-                  flag-> set( flag );
-               }
-               return true;
-            }
+            continue;
          }
+
+         if( o-> getShortName( o ) == ch )
+         {
+            p++;
+            if( *p != '\0' )
+            {
+               val = p;
+               p += strlen( p );
+            }
+            else
+            {
+               if( next != NULL )
+               {
+                  val = next;
+                  if( consumedExtra )
+                  {
+                     *consumedExtra = 1;
+                  }
+               }
+               else
+               {
+                  return false;
+               }
+            }
+
+            if( o-> setValue != NULL )
+            {
+               o-> setValue( o, val );
+            }
+
+            found = true;
+            break;
+         }
+      }
+
+      if( !found )
+      {
+         return false;
       }
    }
 
-   return false;
+   return true;
 }
 
 
@@ -491,11 +710,7 @@ static int parse( Command_t *self, int argc, char *argv[] )
 Command_t *current = self;
 Implementation *impl;
 Argument_t **arguments;
-int argCount;
-int i = 1;
-int pos = 0;
-int j;
-int result;
+int argCount, i = 1, pos = 0, j, result;
 
    if( self == NULL || argv == NULL || argc < 0 )
    {
@@ -504,11 +719,10 @@ int result;
 
    if( argc == 1 )
    {
-      self-> printHelp( self );
+      self-> printHelp( self, stderr );
       return CLI_SUCCESS;
    }
 
-   // Early help detection anywhere in the command chain
    for( i = 1; i < argc; i++ )
    {
       if( strcmp( argv[ i ], "help" ) == 0 || strcmp( argv[ i ], "--help" ) == 0 || strcmp( argv[ i ], "-h" ) == 0 )
@@ -516,26 +730,25 @@ int result;
          current = self;
          for( j = 1; j < i; j++ )
          {
-         Command_t *sub;
+         Command_t *sub = findSubCommand( current, argv[ j ] );
 
-            if( ( sub = findSubCommand( current, argv[ j ] ) ) == NULL )
+            if( sub == NULL )
             {
                break;
             }
             current = sub;
          }
-         current-> printHelp( current );
+         current-> printHelp( current, stderr );
          return CLI_SUCCESS;
       }
    }
 
-   // Resolve subcommand chain
    i = 1;
    while( i < argc && argv[ i ][ 0 ] != '-' )
    {
-   Command_t *sub;
+   Command_t *sub = findSubCommand( current, argv[ i ] );
 
-      if( ( sub = findSubCommand( current, argv[ i ] ) ) == NULL )
+      if( sub == NULL )
       {
          break;
       }
@@ -543,36 +756,40 @@ int result;
       i++;
    }
 
-   // Unknown root command?
    if( current == self && argc > 1 && argv[ 1 ][ 0 ] != '-' && i == 1 )
    {
       fprintf( stderr, "Error: Unknown command '%s'\n", argv[ 1 ] );
-      self-> printHelp( self );
+      self-> printHelp( self, stderr );
       return CLI_ERROR_PARSE_FAILED;
    }
 
-   // Unknown subcommand in a group?
-   impl = ( Implementation * ) current;
-   if( i < argc && argv[ i ][ 0 ] != '-' && impl-> handler == NULL )
+   impl = __containerof(current, Implementation, interface);
+   if (i < argc && argv[ i ][ 0 ] != '-' && impl-> handler == NULL )
    {
       fprintf( stderr, "Error: Unknown subcommand '%s'\n", argv[ i ] );
-      current-> printHelp( current );
+      current-> printHelp( current, stderr );
       return CLI_ERROR_PARSE_FAILED;
    }
 
    arguments = current-> getArguments( current );
    argCount  = current-> getArgumentCount( current );
 
-   // Parse flags + positional arguments
    for( ; i < argc; i++ )
    {
       if( argv[ i ][ 0 ] == '-' && argv[ i ][ 1 ] != '\0' )
       {
-         if( !parseFlag( current, argv[ i ] ) )
+      int consumed = 0;
+      const char *next = ( i + 1 < argc ) ? argv[ i + 1 ] : NULL;
+
+         if( !parseFlagOrOption( current, argv[ i ], next, &consumed ) )
          {
-            fprintf( stderr, "Error: Unknown flag '%s'\n", argv[ i ] );
-            current-> printHelp( current );
+            fprintf( stderr, "Error: Unknown flag/option '%s'\n", argv[ i ] );
+            current-> printHelp( current, stderr );
             return CLI_ERROR_PARSE_FAILED;
+         }
+         if( consumed )
+         {
+            i++;
          }
          continue;
       }
@@ -586,56 +803,68 @@ int result;
       {
          if( argCount == 0 )
          {
-            fprintf( stderr, "Error: Unexpected argument '%s' (command takes no arguments)\n", argv[ i ] );
+            fprintf( stderr, "Error: Unexpected argument '%s'\n", argv[ i ] );
          }
          else
          {
-            fputs( "Error: Too many arguments\n", stderr );
+            fputs( "Error: Too many arguments", stderr );
          }
-         current-> printHelp( current );
+         current-> printHelp( current, stderr );
          return CLI_ERROR_INVALID_ARGUMENT;
       }
    }
 
-   // Check required arguments
    for( j = 0; j < argCount; j++ )
    {
    Argument_t *a = arguments[ j ];
 
-      if( a-> isRequired( a ) && a-> getValue( a ) == NULL )
+      if( a-> isRequired( a ) && !a-> isSet( a ) )
       {
          fprintf( stderr, "Error: Required argument '%s' is missing\n", a-> getName( a ) );
-         current-> printHelp( current );
+         current-> printHelp( current, stderr );
          return CLI_ERROR_INVALID_ARGUMENT;
       }
    }
 
-   // Execute handler if exists
+   for( j = 0; j < impl-> optionCount; j++ )
+   {
+   Option_t *o = impl-> options[ j ];
+
+      if( o-> isRequired( o ) && !o-> isSet( o ) )
+      {
+         fprintf( stderr, "Error: Required option '--%s' is missing\n", o-> getName( o ) );
+         current-> printHelp( current, stderr );
+         return CLI_ERROR_INVALID_ARGUMENT;
+      }
+   }
+
    if( impl-> handler != NULL )
    {
-   CommandContext_t *ctx;
+   CommandContext_t *ctx = newCommandContext( current, current-> getArguments( current ), current-> getArgumentCount( current ), current-> getFlags( current ), current-> getFlagCount( current ), current-> getOptions( current ), current-> getOptionCount( current ) );
 
-      if( ( ctx = newCommandContext( current, current-> getArguments( current ), current-> getArgumentCount( current ), current-> getFlags( current ), current-> getFlagCount( current ) ) ) == NULL )
+      if( ctx == NULL )
       {
-         fputs( "Error: Failed to create command context\n", stderr );
+         fputs( "Error: Failed to create command context", stderr );
          return CLI_ERROR_CONTEXT_FAILED;
       }
+
       result = impl-> handler( ctx );
       ctx-> delete( &ctx );
+
       if( result != CLI_SUCCESS && strcmp( current-> getName( current ), "help" ) != 0 )
       {
-         fputs( "Error: Command execution failed\n", stderr );
-         current-> printHelp( current );
+         fputs( "Error: Command execution failed", stderr );
+         current-> printHelp( current, stderr );
       }
       return result;
    }
 
-   current-> printHelp( current );
+   current-> printHelp( current, stderr );
    return CLI_SUCCESS;
 }
 
 
-static Command_t **getSubCommands( const Command_t *self )
+static Command_t ** getSubCommands( const Command_t *self )
 {
 Implementation *impl;
 
@@ -663,7 +892,7 @@ Implementation *impl;
 }
 
 
-static Argument_t **getArguments( const Command_t *self )
+static Argument_t ** getArguments( const Command_t *self )
 {
 Implementation *impl;
 
@@ -691,7 +920,7 @@ Implementation *impl;
 }
 
 
-static Flag_t **getFlags( const Command_t *self )
+static Flag_t ** getFlags( const Command_t *self )
 {
 Implementation *impl;
 
@@ -719,26 +948,33 @@ Implementation *impl;
 }
 
 
-static void forEachSubCommand( const Command_t *self, bool ( *cb )( Command_t *, void * ), void *context )
+static Option_t ** getOptions( const Command_t *self )
 {
-int count;
-Command_t **subs;
+Implementation *impl;
 
-   if( self == NULL || cb == NULL )
+   if( self == NULL )
    {
-      return;
+      return NULL;
    }
 
-   count = self-> getSubCommandCount( self );
-   subs = self-> getSubCommands( self );
-   for( int i = 0; i < count; i++ )
-   {
-      if( !cb( subs[ i ], context ) )
-      {
-         break;
-      }
-   }
+   impl = __containerof( self, Implementation, interface );
+   return impl-> options;
 }
+
+
+static int getOptionCount( const Command_t *self )
+{
+Implementation *impl;
+
+   if( self == NULL )
+   {
+      return 0;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+   return impl-> optionCount;
+}
+
 
 
 Command_t * newCommand( const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
@@ -747,29 +983,32 @@ Implementation *self;
 
    if( name == NULL || ( self = calloc( 1, sizeof( Implementation ) ) ) == NULL )
    {
-      fputs( "Error: Failed to allocate memory for Command_t.\n", stderr );
+      fputs( "Error: Failed to allocate memory for Command_t.", stderr );
       return NULL;
    }
 
    if( ( self-> name = strdup( name ) ) == NULL )
    {
-      fputs( "Error: Failed to allocate memory for command name.\n", stderr );
+      fputs( "Error: Failed to allocate memory for command name.", stderr );
       free( self );
       return NULL;
    }
 
    if( description != NULL && ( self-> description = strdup( description ) ) == NULL )
    {
-      fputs( "Error: Failed to allocate memory for command description.\n", stderr );
+      fputs( "Error: Failed to allocate memory for command description.", stderr );
       free( self-> name );
       free( self );
       return NULL;
    }
 
    self-> handler = handler;
+   self-> parent = NULL;
+
    self-> interface.addSubCommand = addSubCommand;
    self-> interface.addArgument = addArgument;
    self-> interface.addFlag = addFlag;
+   self-> interface.addOption = addOption;
    self-> interface.parse = parse;
    self-> interface.delete = delete;
    self-> interface.getName = getName;
@@ -779,10 +1018,13 @@ Implementation *self;
    self-> interface.getArgumentCount = getArgumentCount;
    self-> interface.getFlags = getFlags;
    self-> interface.getFlagCount = getFlagCount;
+   self-> interface.getOptions = getOptions;
+   self-> interface.getOptionCount = getOptionCount;
    self-> interface.getSubCommands = getSubCommands;
    self-> interface.getSubCommandCount = getSubCommandCount;
    self-> interface.printHelp = printHelp;
-   self-> interface.forEachSubCommand = forEachSubCommand;
+   self-> interface.getParent = getParent;
+   self-> interface.setParent = setParent;
 
    return &self-> interface;
 }

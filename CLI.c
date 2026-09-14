@@ -6,6 +6,7 @@
 #include "Command.h"
 #include "Argument.h"
 #include "Flag.h"
+#include "Option.h"
 
 
 typedef struct
@@ -15,62 +16,55 @@ typedef struct
 } Implementation;
 
 
-typedef struct
+static Command_t *resolveCommandPath( Command_t *root, const char *path )
 {
-   const char *token;
-   Command_t *found;
-} SearchContext_t;
-
-
-static bool findSubCmd( Command_t *sub, void *context )
-{
-SearchContext_t *ctx = ( SearchContext_t * ) context;
-
-   if( strcmp( sub-> getName( sub ), ctx-> token ) == 0 )
-   {
-      ctx-> found = sub;
-      return false;
-   }
-
-   return true;
-}
-
-
-static Command_t * resolveCommandPath( Command_t *root, const char *path )
-{
-char *pathCopy;
+char *copy;
 const char *token;
 char *savePtr;
 Command_t *current;
-SearchContext_t searchCtx;
+Command_t **subs;
+int count, i;
 
    if( root == NULL || path == NULL || *path == '\0' )
    {
       return root;
    }
 
-   if( ( pathCopy = strdup( path ) ) == NULL )
+   if( ( copy = strdup( path ) ) == NULL )
    {
       return NULL;
    }
 
-   token = strtok_r( pathCopy, " ", &savePtr );
+   token = strtok_r( copy, " ", &savePtr );
    current = root;
+
    while( token != NULL && current != NULL )
    {
-      searchCtx.token = token;
-      searchCtx.found = NULL;
-      current-> forEachSubCommand( current, findSubCmd, &searchCtx );
-      current = searchCtx.found;
+   Command_t *found = NULL;
+
+      subs = current-> getSubCommands( current );
+      count = current-> getSubCommandCount( current );
+
+      for( i = 0; i < count; i++ )
+      {
+         if( strcmp( subs[ i ]-> getName( subs[ i ] ), token ) == 0 )
+         {
+            found = subs[ i ];
+            break;
+         }
+      }
+
+      current = found;
       if( current == NULL )
       {
-         free( pathCopy );
+         free( copy );
          return NULL;
       }
+
       token = strtok_r( NULL, " ", &savePtr );
    }
-   free( pathCopy );
 
+   free( copy );
    return current;
 }
 
@@ -104,19 +98,17 @@ Command_t *cmd;
 static int addSubCommand( const CLI_t *self, const char *parentPath, const char *name, const char *description, int ( *handler )( const CommandContext_t * ) )
 {
 Command_t *parent, *sub;
+Implementation *impl;
 
    if( self == NULL || parentPath == NULL || *parentPath == '\0' || name == NULL || description == NULL || handler == NULL )
    {
       return CLI_ERROR_INVALID_ARGUMENT;
    }
-   else
-   {
-   Implementation *impl = __containerof( self, Implementation, interface );
 
-      if( ( parent = resolveCommandPath( impl-> rootCommand, parentPath ) ) == NULL )
-      {
-         return CLI_ERROR_NOT_FOUND;
-      }
+   impl = __containerof( self, Implementation, interface );
+   if( ( parent = resolveCommandPath( impl-> rootCommand, parentPath ) ) == NULL )
+   {
+      return CLI_ERROR_NOT_FOUND;
    }
 
    if( ( sub = newCommand( name, description, handler ) ) == NULL )
@@ -133,7 +125,6 @@ Command_t *parent, *sub;
    return CLI_SUCCESS;
 }
 
-
 static int addArgument( const CLI_t *self, const char *path, const char *name, const char *description, bool required )
 {
 Implementation *impl;
@@ -146,6 +137,7 @@ Argument_t *arg;
    }
 
    impl = __containerof( self, Implementation, interface );
+
    if( path != NULL && *path != '\0' )
    {
       cmd = resolveCommandPath( impl-> rootCommand, path );
@@ -174,19 +166,19 @@ Argument_t *arg;
    return CLI_SUCCESS;
 }
 
-
 static int addFlag( const CLI_t *self, const char *path, const char *name, char shortName, const char *description )
 {
-Implementation *impl = __containerof( self, Implementation, interface );
+Implementation *impl;
 Command_t *cmd;
 Flag_t *flag;
 
-   if( self == NULL || path == NULL || name == NULL )
+   if( self == NULL || name == NULL )
    {
       return CLI_ERROR_INVALID_ARGUMENT;
    }
 
    impl = __containerof( self, Implementation, interface );
+
    if( path != NULL && *path != '\0' )
    {
       cmd = resolveCommandPath( impl-> rootCommand, path );
@@ -215,6 +207,47 @@ Flag_t *flag;
    return CLI_SUCCESS;
 }
 
+
+static int addOption( const CLI_t *self, const char *path, const char *name, char shortName, const char *description, bool required )
+{
+Implementation *impl;
+Command_t *cmd;
+Option_t *option;
+
+   if( self == NULL || name == NULL )
+   {
+      return CLI_ERROR_INVALID_ARGUMENT;
+   }
+
+   impl = __containerof( self, Implementation, interface );
+
+   if( path != NULL && *path != '\0' )
+   {
+      cmd = resolveCommandPath( impl-> rootCommand, path );
+   }
+   else
+   {
+      cmd = impl-> rootCommand;
+   }
+
+   if( cmd == NULL )
+   {
+      return CLI_ERROR_NOT_FOUND;
+   }
+
+   if( ( option = newOption( name, shortName, description, required ) ) == NULL )
+   {
+      return CLI_ERROR_MEMORY;
+   }
+
+   if( cmd-> addOption( cmd, option ) != CLI_SUCCESS )
+   {
+      option-> delete( &option );
+      return CLI_ERROR_MEMORY;
+   }
+
+   return CLI_SUCCESS;
+}
 
 static int parse( const CLI_t *self, int argc, char *argv[] )
 {
@@ -246,15 +279,14 @@ CLI_t *self;
    }
 
    self = *selfPtr;
+   impl = __containerof( self, Implementation, interface );
 
-   if( ( impl = __containerof( self, Implementation, interface ) ) != NULL )
+   if( impl-> rootCommand != NULL )
    {
-      if( impl-> rootCommand != NULL )
-      {
-         impl-> rootCommand-> delete( &impl-> rootCommand );
-      }
-      free( impl );
+      impl-> rootCommand-> delete( &impl-> rootCommand );
    }
+
+   free( impl );
    *selfPtr = NULL;
 }
 
@@ -272,9 +304,16 @@ Implementation *self;
    self-> interface.addSubCommand = addSubCommand;
    self-> interface.addArgument = addArgument;
    self-> interface.addFlag = addFlag;
+   self-> interface.addOption = addOption;
    self-> interface.parse = parse;
    self-> interface.delete = delete;
+
    self-> rootCommand = newCommand( getprogname(), description, NULL );
+   if( self-> rootCommand == NULL )
+   {
+      free( self) ;
+      return NULL;
+   }
 
    return &self-> interface;
 }

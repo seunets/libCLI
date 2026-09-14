@@ -2,7 +2,7 @@ LIB = CLI
 
 SHLIB_MAJOR = 1
 
-SRCS = CLI.c Command.c CommandContext.c Flag.c Argument.c
+SRCS = CLI.c Command.c CommandContext.c Flag.c Option.c Argument.c
 
 MAN=
 

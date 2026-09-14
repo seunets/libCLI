@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "Flag.h"
 
 
@@ -79,7 +80,7 @@ Implementation *impl;
       return;
    }
 
-   impl = __containerof( self, Implementation, interface );
+   impl = __containerof(self, Implementation, interface);
    impl-> isSet = true;
 }
 
@@ -125,7 +126,9 @@ Implementation *self;
          return NULL;
       }
    }
+
    self-> shortName = shortName;
+
    self-> interface.getName = getName;
    self-> interface.getDescription = getDescription;
    self-> interface.getShortName = getShortName;

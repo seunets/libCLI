@@ -15,6 +15,6 @@ typedef struct Flag
    void ( *delete )( struct Flag ** );
 } Flag_t;
 
-Flag_t * newFlag( const char *, char, const char * );
+Flag_t *newFlag( const char *name, char shortName, const char *description );
 
-#endif 
+#endif
